@@ -14,6 +14,29 @@ from PyQt5.QtWidgets import QApplication, QSplashScreen
 from PyQt5.QtCore import Qt, QTimer, QRect, QSize
 from PyQt5.QtGui import QPixmap, QPainter, QFont, QColor, QLinearGradient
 
+# DPI Scaling ayarları - QApplication'dan önce ayarlanmalı
+if hasattr(Qt, 'AA_EnableHighDpiScaling'):
+    QApplication.setAttribute(Qt.AA_EnableHighDpiScaling, True)
+if hasattr(Qt, 'AA_UseHighDpiPixmaps'):
+    QApplication.setAttribute(Qt.AA_UseHighDpiPixmaps, True)
+if hasattr(Qt, 'AA_DisableWindowContextHelpButton'):
+    QApplication.setAttribute(Qt.AA_DisableWindowContextHelpButton, True)
+
+# Windows'ta DPI awareness ayarla
+if sys.platform == "win32":
+    try:
+        import ctypes
+        from ctypes import wintypes
+        
+        # Windows DPI awareness ayarla
+        ctypes.windll.shcore.SetProcessDpiAwareness(2)  # PROCESS_PER_MONITOR_DPI_AWARE
+    except (ImportError, AttributeError, OSError):
+        # Fallback - eski Windows versiyonları için
+        try:
+            ctypes.windll.user32.SetProcessDPIAware()
+        except:
+            pass
+
 # Kendi modüllerimizi import et
 try:
     from main_window import TezgahTakipMainWindow, CustomMessageBox

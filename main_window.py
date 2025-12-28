@@ -394,6 +394,9 @@ class TezgahTakipMainWindow(QMainWindow):
         self.setup_status_bar()
         self.setup_keyboard_shortcuts()
         
+        # Pencere durumunu kontrol et ve düzelt
+        self.fix_window_state()
+        
         # Timer'lar
         self.setup_timers()
         
@@ -402,6 +405,31 @@ class TezgahTakipMainWindow(QMainWindow):
         
         # Otomatik yedekleme kontrolü
         self.check_auto_backup()
+    
+    def fix_window_state(self):
+        """Pencere durumunu kontrol et ve düzelt"""
+        try:
+            # Eğer pencere tam ekran modunda ise, normal moda geç
+            if self.windowState() & Qt.WindowMaximized:
+                self.showNormal()
+                self.logger.info("Window state fixed: Changed from maximized to normal")
+            
+            # Menü çubuğunun görünür olduğundan emin ol
+            if self.menuBar():
+                self.menuBar().setVisible(True)
+                self.menuBar().show()
+                
+            # Status bar'ın görünür olduğundan emin ol
+            if self.statusBar():
+                self.statusBar().setVisible(True)
+                self.statusBar().show()
+                
+            # Pencereyi öne getir
+            self.raise_()
+            self.activateWindow()
+            
+        except Exception as e:
+            self.logger.error(f"Fix window state error: {e}")
     
     def apply_accessibility_settings(self):
         """Accessibility ayarlarını uygula"""
@@ -561,32 +589,63 @@ class TezgahTakipMainWindow(QMainWindow):
             self.logger.error(f"Resource cleanup error: {e}")
     
     def setup_responsive_window(self):
-        """Responsive pencere boyutu ayarla"""
+        """Responsive pencere boyutu ayarla - DPI aware"""
         try:
+            # DPI scaling'i etkinleştir
+            QApplication.setAttribute(Qt.AA_EnableHighDpiScaling, True)
+            QApplication.setAttribute(Qt.AA_UseHighDpiPixmaps, True)
+            
             # Ekran boyutunu al
             screen = QApplication.primaryScreen()
-            screen_geometry = screen.geometry()
+            screen_geometry = screen.availableGeometry()  # availableGeometry taskbar'ı hariç tutar
+            dpi_ratio = screen.devicePixelRatio()
             
-            # Responsive boyut hesapla
-            width = min(1400, int(screen_geometry.width() * 0.8))
-            height = min(900, int(screen_geometry.height() * 0.8))
+            # DPI'ya göre ayarlanmış boyutlar
+            base_width = 1400
+            base_height = 900
+            min_width = 1000  # Daha küçük minimum boyut
+            min_height = 700
             
-            # Minimum boyutları ayarla
-            self.setMinimumSize(WINDOW_MIN_WIDTH, WINDOW_MIN_HEIGHT)
+            # Ekran boyutuna göre responsive hesaplama
+            if screen_geometry.width() < 1366:  # Küçük ekranlar için
+                width = int(screen_geometry.width() * 0.95)
+                height = int(screen_geometry.height() * 0.90)
+            elif screen_geometry.width() < 1920:  # Orta boyut ekranlar
+                width = int(screen_geometry.width() * 0.85)
+                height = int(screen_geometry.height() * 0.85)
+            else:  # Büyük ekranlar
+                width = min(base_width, int(screen_geometry.width() * 0.75))
+                height = min(base_height, int(screen_geometry.height() * 0.80))
             
-            # Pencereyi boyutlandır ve ortala
+            # Minimum boyutları kontrol et
+            width = max(width, min_width)
+            height = max(height, min_height)
+            
+            # Pencere boyutlarını ayarla
+            self.setMinimumSize(min_width, min_height)
             self.resize(width, height)
             
-            # Ekranın ortasında konumlandır
+            # Pencereyi ekranın ortasında konumlandır
             center_point = screen_geometry.center()
             frame_geometry = self.frameGeometry()
             frame_geometry.moveCenter(center_point)
             self.move(frame_geometry.topLeft())
             
+            # Pencere durumunu ayarla - tam ekran değil, normal boyut
+            self.setWindowState(Qt.WindowNoState)
+            
+            # Menü çubuğunun görünür olduğundan emin ol
+            if self.menuBar():
+                self.menuBar().setVisible(True)
+                self.menuBar().setFixedHeight(30)  # Sabit yükseklik
+            
+            self.logger.info(f"Window setup: {width}x{height}, DPI: {dpi_ratio}, Screen: {screen_geometry.width()}x{screen_geometry.height()}")
+            
         except Exception as e:
             self.logger.error(f"Responsive window setup error: {e}")
-            # Fallback sabit boyut
-            self.setGeometry(100, 100, 1400, 900)
+            # Fallback güvenli boyut
+            self.setGeometry(100, 100, 1200, 800)
+            self.setWindowState(Qt.WindowNoState)
     
     def setup_theme(self):
         """Koyu tema ayarla"""
@@ -662,21 +721,46 @@ class TezgahTakipMainWindow(QMainWindow):
                 background-color: #3c3c3c;
                 color: #ffffff;
                 border-bottom: 1px solid #555555;
+                min-height: 30px;
+                font-size: 12px;
+                font-weight: bold;
             }
             QMenuBar::item {
                 background-color: transparent;
-                padding: 5px 10px;
+                padding: 8px 12px;
+                margin: 2px;
+                border-radius: 3px;
+                min-height: 20px;
             }
             QMenuBar::item:selected {
                 background-color: #4CAF50;
+                color: white;
+            }
+            QMenuBar::item:pressed {
+                background-color: #3d8b40;
             }
             QMenu {
                 background-color: #3c3c3c;
                 color: #ffffff;
                 border: 1px solid #555555;
+                border-radius: 5px;
+                padding: 5px;
+                font-size: 11px;
+            }
+            QMenu::item {
+                padding: 8px 20px;
+                margin: 1px;
+                border-radius: 3px;
+                min-height: 20px;
             }
             QMenu::item:selected {
                 background-color: #4CAF50;
+                color: white;
+            }
+            QMenu::separator {
+                height: 1px;
+                background-color: #555555;
+                margin: 5px 10px;
             }
             QStatusBar {
                 background-color: #3c3c3c;
@@ -5240,8 +5324,358 @@ Teknoloji:
             CustomMessageBox.critical(self, "❌ Hata", f"Tezgah silinirken hata oluştu:\n{e}")
     
     def import_data(self):
-        """Veri içe aktarma"""
-        CustomMessageBox.information(self, "ℹ️ Bilgi", "Veri içe aktarma özelliği yakında eklenecek!")
+        """Veri içe aktarma - .db dosyası veya JSON formatında"""
+        try:
+            from PyQt5.QtWidgets import QFileDialog, QProgressDialog
+            import shutil
+            import sqlite3
+            import json
+            
+            # Dosya seçim dialog'u
+            file_path, _ = QFileDialog.getOpenFileName(
+                self,
+                "İçe Aktarılacak Dosyayı Seçin",
+                "",
+                "Veritabanı Dosyaları (*.db *.sqlite *.sqlite3);;JSON Dosyaları (*.json);;Tüm Dosyalar (*.*)"
+            )
+            
+            if not file_path:
+                return
+            
+            # Dosya türünü kontrol et
+            file_extension = os.path.splitext(file_path)[1].lower()
+            
+            if file_extension in ['.db', '.sqlite', '.sqlite3']:
+                self.import_database_file(file_path)
+            elif file_extension == '.json':
+                self.import_json_file(file_path)
+            else:
+                CustomMessageBox.warning(self, "⚠️ Uyarı", 
+                                       "Desteklenmeyen dosya formatı!\n\n"
+                                       "Desteklenen formatlar:\n"
+                                       "• .db, .sqlite, .sqlite3 (Veritabanı dosyaları)\n"
+                                       "• .json (JSON veri dosyaları)")
+                
+        except Exception as e:
+            self.logger.error(f"Import data error: {e}")
+            CustomMessageBox.critical(self, "❌ Hata", f"Veri içe aktarma hatası:\n{e}")
+    
+    def import_database_file(self, file_path):
+        """Veritabanı dosyasını içe aktar"""
+        try:
+            # Önce dosyanın geçerli bir SQLite veritabanı olduğunu kontrol et
+            test_conn = sqlite3.connect(file_path)
+            cursor = test_conn.cursor()
+            
+            # Tabloları kontrol et
+            cursor.execute("SELECT name FROM sqlite_master WHERE type='table';")
+            tables = [row[0] for row in cursor.fetchall()]
+            test_conn.close()
+            
+            if not tables:
+                CustomMessageBox.warning(self, "⚠️ Uyarı", "Seçilen dosya boş bir veritabanı!")
+                return
+            
+            # Kullanıcıya seçenekleri sun
+            from PyQt5.QtWidgets import QDialog, QVBoxLayout, QHBoxLayout, QRadioButton, QLabel, QPushButton
+            
+            dialog = QDialog(self)
+            dialog.setWindowTitle("İçe Aktarma Seçenekleri")
+            dialog.setFixedSize(400, 300)
+            dialog.setModal(True)
+            
+            layout = QVBoxLayout()
+            
+            # Açıklama
+            info_label = QLabel("Veri içe aktarma yöntemi seçin:")
+            info_label.setWordWrap(True)
+            layout.addWidget(info_label)
+            
+            # Seçenekler
+            merge_radio = QRadioButton("Mevcut verilerle birleştir (önerilen)")
+            merge_radio.setChecked(True)
+            layout.addWidget(merge_radio)
+            
+            replace_radio = QRadioButton("Mevcut verileri değiştir (dikkatli olun!)")
+            layout.addWidget(replace_radio)
+            
+            # Butonlar
+            button_layout = QHBoxLayout()
+            ok_button = QPushButton("Devam Et")
+            cancel_button = QPushButton("İptal")
+            
+            button_layout.addWidget(ok_button)
+            button_layout.addWidget(cancel_button)
+            layout.addLayout(button_layout)
+            
+            dialog.setLayout(layout)
+            
+            # Dialog olayları
+            ok_button.clicked.connect(dialog.accept)
+            cancel_button.clicked.connect(dialog.reject)
+            
+            if dialog.exec_() != QDialog.Accepted:
+                return
+            
+            merge_mode = merge_radio.isChecked()
+            
+            # Progress dialog
+            progress = QProgressDialog("Veriler içe aktarılıyor...", "İptal", 0, 100, self)
+            progress.setWindowModality(Qt.WindowModal)
+            progress.show()
+            
+            # Veritabanından verileri oku ve aktar
+            source_conn = sqlite3.connect(file_path)
+            source_cursor = source_conn.cursor()
+            
+            imported_counts = {
+                'tezgahlar': 0,
+                'bakimlar': 0,
+                'piller': 0
+            }
+            
+            # Tezgahları aktar
+            if 'tezgahlar' in tables:
+                progress.setLabelText("Tezgahlar aktarılıyor...")
+                progress.setValue(10)
+                
+                source_cursor.execute("SELECT * FROM tezgahlar")
+                tezgahlar = source_cursor.fetchall()
+                
+                # Sütun isimlerini al
+                source_cursor.execute("PRAGMA table_info(tezgahlar)")
+                columns = [row[1] for row in source_cursor.fetchall()]
+                
+                for tezgah_data in tezgahlar:
+                    try:
+                        # Veriyi dict'e çevir
+                        tezgah_dict = dict(zip(columns, tezgah_data))
+                        
+                        # Mevcut tezgahı kontrol et
+                        existing = self.db_manager.session.query(Tezgah).filter_by(
+                            tezgah_no=tezgah_dict.get('tezgah_no')
+                        ).first()
+                        
+                        if existing and merge_mode:
+                            # Güncelle
+                            for key, value in tezgah_dict.items():
+                                if hasattr(existing, key) and key != 'id':
+                                    setattr(existing, key, value)
+                        elif not existing:
+                            # Yeni ekle
+                            new_tezgah = Tezgah()
+                            for key, value in tezgah_dict.items():
+                                if hasattr(new_tezgah, key) and key != 'id':
+                                    setattr(new_tezgah, key, value)
+                            self.db_manager.session.add(new_tezgah)
+                        
+                        imported_counts['tezgahlar'] += 1
+                        
+                    except Exception as e:
+                        self.logger.warning(f"Tezgah import error: {e}")
+                        continue
+            
+            progress.setValue(40)
+            
+            # Bakımları aktar
+            if 'bakimlar' in tables:
+                progress.setLabelText("Bakımlar aktarılıyor...")
+                
+                source_cursor.execute("SELECT * FROM bakimlar")
+                bakimlar = source_cursor.fetchall()
+                
+                source_cursor.execute("PRAGMA table_info(bakimlar)")
+                columns = [row[1] for row in source_cursor.fetchall()]
+                
+                for bakim_data in bakimlar:
+                    try:
+                        bakim_dict = dict(zip(columns, bakim_data))
+                        
+                        # Yeni bakım ekle (bakımlar genelde unique olur)
+                        new_bakim = Bakim()
+                        for key, value in bakim_dict.items():
+                            if hasattr(new_bakim, key) and key != 'id':
+                                setattr(new_bakim, key, value)
+                        
+                        self.db_manager.session.add(new_bakim)
+                        imported_counts['bakimlar'] += 1
+                        
+                    except Exception as e:
+                        self.logger.warning(f"Bakım import error: {e}")
+                        continue
+            
+            progress.setValue(70)
+            
+            # Pilleri aktar
+            if 'piller' in tables:
+                progress.setLabelText("Piller aktarılıyor...")
+                
+                source_cursor.execute("SELECT * FROM piller")
+                piller = source_cursor.fetchall()
+                
+                source_cursor.execute("PRAGMA table_info(piller)")
+                columns = [row[1] for row in source_cursor.fetchall()]
+                
+                for pil_data in piller:
+                    try:
+                        pil_dict = dict(zip(columns, pil_data))
+                        
+                        # Mevcut pili kontrol et
+                        existing = self.db_manager.session.query(Pil).filter_by(
+                            tezgah_no=pil_dict.get('tezgah_no'),
+                            eksen=pil_dict.get('eksen')
+                        ).first()
+                        
+                        if existing and merge_mode:
+                            # Güncelle
+                            for key, value in pil_dict.items():
+                                if hasattr(existing, key) and key != 'id':
+                                    setattr(existing, key, value)
+                        elif not existing:
+                            # Yeni ekle
+                            new_pil = Pil()
+                            for key, value in pil_dict.items():
+                                if hasattr(new_pil, key) and key != 'id':
+                                    setattr(new_pil, key, value)
+                            self.db_manager.session.add(new_pil)
+                        
+                        imported_counts['piller'] += 1
+                        
+                    except Exception as e:
+                        self.logger.warning(f"Pil import error: {e}")
+                        continue
+            
+            progress.setValue(90)
+            
+            # Değişiklikleri kaydet
+            self.db_manager.session.commit()
+            source_conn.close()
+            
+            progress.setValue(100)
+            progress.close()
+            
+            # Verileri yenile
+            self.refresh_all_data()
+            
+            # Başarı mesajı
+            message = f"✅ Veri içe aktarma başarılı!\n\n"
+            message += f"📊 İçe aktarılan veriler:\n"
+            message += f"• Tezgahlar: {imported_counts['tezgahlar']}\n"
+            message += f"• Bakımlar: {imported_counts['bakimlar']}\n"
+            message += f"• Piller: {imported_counts['piller']}"
+            
+            CustomMessageBox.information(self, "✅ Başarılı", message)
+            
+        except Exception as e:
+            self.logger.error(f"Database import error: {e}")
+            CustomMessageBox.critical(self, "❌ Hata", f"Veritabanı içe aktarma hatası:\n{e}")
+    
+    def import_json_file(self, file_path):
+        """JSON dosyasını içe aktar"""
+        try:
+            with open(file_path, 'r', encoding='utf-8') as f:
+                data = json.load(f)
+            
+            # Progress dialog
+            from PyQt5.QtWidgets import QProgressDialog
+            progress = QProgressDialog("JSON veriler aktarılıyor...", "İptal", 0, 100, self)
+            progress.setWindowModality(Qt.WindowModal)
+            progress.show()
+            
+            imported_counts = {
+                'tezgahlar': 0,
+                'bakimlar': 0,
+                'piller': 0
+            }
+            
+            # Tezgahları aktar
+            if 'tezgahlar' in data:
+                progress.setLabelText("Tezgahlar aktarılıyor...")
+                progress.setValue(20)
+                
+                for tezgah_data in data['tezgahlar']:
+                    try:
+                        existing = self.db_manager.session.query(Tezgah).filter_by(
+                            tezgah_no=tezgah_data.get('tezgah_no')
+                        ).first()
+                        
+                        if not existing:
+                            new_tezgah = Tezgah()
+                            for key, value in tezgah_data.items():
+                                if hasattr(new_tezgah, key):
+                                    setattr(new_tezgah, key, value)
+                            self.db_manager.session.add(new_tezgah)
+                            imported_counts['tezgahlar'] += 1
+                            
+                    except Exception as e:
+                        self.logger.warning(f"JSON tezgah import error: {e}")
+                        continue
+            
+            progress.setValue(60)
+            
+            # Bakımları aktar
+            if 'bakimlar' in data:
+                progress.setLabelText("Bakımlar aktarılıyor...")
+                
+                for bakim_data in data['bakimlar']:
+                    try:
+                        new_bakim = Bakim()
+                        for key, value in bakim_data.items():
+                            if hasattr(new_bakim, key):
+                                setattr(new_bakim, key, value)
+                        self.db_manager.session.add(new_bakim)
+                        imported_counts['bakimlar'] += 1
+                        
+                    except Exception as e:
+                        self.logger.warning(f"JSON bakım import error: {e}")
+                        continue
+            
+            progress.setValue(80)
+            
+            # Pilleri aktar
+            if 'piller' in data:
+                progress.setLabelText("Piller aktarılıyor...")
+                
+                for pil_data in data['piller']:
+                    try:
+                        existing = self.db_manager.session.query(Pil).filter_by(
+                            tezgah_no=pil_data.get('tezgah_no'),
+                            eksen=pil_data.get('eksen')
+                        ).first()
+                        
+                        if not existing:
+                            new_pil = Pil()
+                            for key, value in pil_data.items():
+                                if hasattr(new_pil, key):
+                                    setattr(new_pil, key, value)
+                            self.db_manager.session.add(new_pil)
+                            imported_counts['piller'] += 1
+                            
+                    except Exception as e:
+                        self.logger.warning(f"JSON pil import error: {e}")
+                        continue
+            
+            # Değişiklikleri kaydet
+            self.db_manager.session.commit()
+            
+            progress.setValue(100)
+            progress.close()
+            
+            # Verileri yenile
+            self.refresh_all_data()
+            
+            # Başarı mesajı
+            message = f"✅ JSON veri içe aktarma başarılı!\n\n"
+            message += f"📊 İçe aktarılan veriler:\n"
+            message += f"• Tezgahlar: {imported_counts['tezgahlar']}\n"
+            message += f"• Bakımlar: {imported_counts['bakimlar']}\n"
+            message += f"• Piller: {imported_counts['piller']}"
+            
+            CustomMessageBox.information(self, "✅ Başarılı", message)
+            
+        except Exception as e:
+            self.logger.error(f"JSON import error: {e}")
+            CustomMessageBox.critical(self, "❌ Hata", f"JSON içe aktarma hatası:\n{e}")
     
     def closeEvent(self, event):
         """Uygulama kapatılırken - Resource cleanup"""

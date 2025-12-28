@@ -23,8 +23,9 @@ main_a = Analysis(
     pathex=[],
     binaries=[],
     datas=[
-        ('mtb_logo.png', '.'),
-        ('mtb_logo.svg', '.'),
+        ('tezgah_logo.png', '.'),
+        ('tezgah_icon.ico', '.'),
+        ('tezgah_logo.svg', '.'),
         ('config.json', '.'),
         ('requirements.txt', '.'),
     ],
@@ -53,7 +54,8 @@ launcher_a = Analysis(
     pathex=[],
     binaries=[],
     datas=[
-        ('mtb_logo.png', '.'),
+        ('tezgah_logo.png', '.'),
+        ('tezgah_icon.ico', '.'),
         ('auto_updater.py', '.'),
     ],
     hiddenimports=[
@@ -99,7 +101,7 @@ main_exe = EXE(
     target_arch=None,
     codesign_identity=None,
     entitlements_file=None,
-    icon='mtb_logo.png' if os.path.exists('mtb_logo.png') else None,
+    icon='tezgah_icon.ico' if os.path.exists('tezgah_icon.ico') else None,
 )
 
 # Launcher EXE
@@ -122,7 +124,7 @@ launcher_exe = EXE(
     target_arch=None,
     codesign_identity=None,
     entitlements_file=None,
-    icon='mtb_logo.png' if os.path.exists('mtb_logo.png') else None,
+    icon='tezgah_icon.ico' if os.path.exists('tezgah_icon.ico') else None,
 )
 '''
     

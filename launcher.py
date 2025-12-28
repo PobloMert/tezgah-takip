@@ -14,6 +14,22 @@ from tkinter import ttk, messagebox
 from pathlib import Path
 import threading
 import time
+
+# Windows DPI awareness ayarları
+if sys.platform == "win32":
+    try:
+        import ctypes
+        from ctypes import wintypes
+        
+        # Windows DPI awareness ayarla
+        ctypes.windll.shcore.SetProcessDpiAwareness(2)  # PROCESS_PER_MONITOR_DPI_AWARE
+    except (ImportError, AttributeError, OSError):
+        # Fallback - eski Windows versiyonları için
+        try:
+            ctypes.windll.user32.SetProcessDPIAware()
+        except:
+            pass
+
 from auto_updater import AutoUpdater
 
 class TezgahTakipLauncher:
@@ -27,8 +43,11 @@ class TezgahTakipLauncher:
         
         # Icon ayarla (varsa)
         try:
-            if os.path.exists("mtb_logo.png"):
-                self.root.iconbitmap("mtb_logo.png")
+            if os.path.exists("tezgah_icon.ico"):
+                self.root.iconbitmap("tezgah_icon.ico")
+            elif os.path.exists("tezgah_logo.png"):
+                # PNG için alternatif yöntem
+                pass
         except:
             pass
         
@@ -233,16 +252,47 @@ class TezgahTakipLauncher:
             self.log("🚀 TezgahTakip başlatılıyor...")
             self.update_status("Uygulama başlatılıyor...")
             
-            # Python script olarak çalıştır
-            if os.path.exists("run_tezgah_takip.py"):
-                subprocess.Popen([sys.executable, "run_tezgah_takip.py"])
+            # Önce executable dosyasını ara
+            executable_paths = [
+                "TezgahTakip.exe",  # Aynı dizinde
+                os.path.join(os.path.dirname(sys.executable), "TezgahTakip.exe"),  # Launcher ile aynı dizin
+                os.path.join(os.getcwd(), "TezgahTakip.exe"),  # Çalışma dizini
+            ]
+            
+            # Python script yedek seçenek
+            python_script_paths = [
+                "run_tezgah_takip.py",
+                "tezgah_takip_app.py",
+                "main_window.py"
+            ]
+            
+            launched = False
+            
+            # Önce executable'ları dene
+            for exe_path in executable_paths:
+                if os.path.exists(exe_path):
+                    self.log(f"✅ Executable bulundu: {exe_path}")
+                    subprocess.Popen([exe_path])
+                    launched = True
+                    break
+            
+            # Executable bulunamazsa Python script'lerini dene
+            if not launched:
+                for script_path in python_script_paths:
+                    if os.path.exists(script_path):
+                        self.log(f"✅ Python script bulundu: {script_path}")
+                        subprocess.Popen([sys.executable, script_path])
+                        launched = True
+                        break
+            
+            if launched:
                 self.log("✅ Uygulama başlatıldı")
                 self.update_status("Uygulama başlatıldı")
                 
                 # Launcher'ı kapat
                 self.root.after(2000, self.root.quit)
             else:
-                raise FileNotFoundError("run_tezgah_takip.py bulunamadı!")
+                raise FileNotFoundError("Ne TezgahTakip.exe ne de Python script dosyaları bulunamadı!")
                 
         except Exception as e:
             self.log(f"❌ Başlatma hatası: {e}")

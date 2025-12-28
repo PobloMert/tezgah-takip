@@ -24,7 +24,26 @@ MANIFEST
 # PyInstaller 
 *.manifest 
 *.spec 
-*.exe 
+*.exe
+
+# Large distribution files (GitHub 100MB limit)
+*.zip
+TezgahTakip-*.zip
+TezgahTakip-v*.zip
+
+# Build directories and large files
+build/
+dist/
+*.pkg
+*.pyz
+
+# Old MTB logo files (deprecated)
+mtb_logo.png
+mtb_logo.svg
+mtb_logo.py
+
+# Source code backup (local only)
+source_code/ 
  
 # Logs 
 logs/ 
