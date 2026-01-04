@@ -377,7 +377,7 @@ class TezgahTakipMainWindow(QMainWindow):
         self.api_timer = None
         
         # UI kurulumu
-        self.setWindowTitle("🏭 TezgahTakip - AI Güçlü Fabrika Bakım Yönetim Sistemi v2.0")
+        self.setWindowTitle("🏭 TezgahTakip - AI Güçlü Fabrika Bakım Yönetim Sistemi v2.1.1")
         
         # Responsive window size
         self.setup_responsive_window()
@@ -407,17 +407,30 @@ class TezgahTakipMainWindow(QMainWindow):
         self.check_auto_backup()
     
     def fix_window_state(self):
-        """Pencere durumunu kontrol et ve düzelt"""
+        """Pencere durumunu kontrol et ve düzelt - v2.0.0 tarzı"""
         try:
             # Eğer pencere tam ekran modunda ise, normal moda geç
             if self.windowState() & Qt.WindowMaximized:
                 self.showNormal()
                 self.logger.info("Window state fixed: Changed from maximized to normal")
             
-            # Menü çubuğunun görünür olduğundan emin ol
-            if self.menuBar():
-                self.menuBar().setVisible(True)
-                self.menuBar().show()
+            # Menü çubuğunu çok güçlü bir şekilde zorla görünür yap
+            menubar = self.menuBar()
+            if menubar:
+                menubar.setParent(self)
+                menubar.setVisible(True)
+                menubar.show()
+                menubar.setFixedHeight(30)
+                menubar.raise_()
+                menubar.activateWindow()
+                menubar.update()
+                menubar.repaint()
+                
+                self.logger.info(f"Menu bar forced visible - Height: {menubar.height()}, Visible: {menubar.isVisible()}")
+            
+            # Tab widget'ları zorla görünür yap
+            if hasattr(self, 'tab_widget'):
+                self.force_widgets_visible()
                 
             # Status bar'ın görünür olduğundan emin ol
             if self.statusBar():
@@ -427,6 +440,8 @@ class TezgahTakipMainWindow(QMainWindow):
             # Pencereyi öne getir
             self.raise_()
             self.activateWindow()
+            self.update()
+            self.repaint()
             
         except Exception as e:
             self.logger.error(f"Fix window state error: {e}")
@@ -657,24 +672,44 @@ class TezgahTakipMainWindow(QMainWindow):
             QTabWidget::pane {
                 border: 1px solid #555555;
                 background-color: #2b2b2b;
+                top: -1px;
             }
             QTabWidget::tab-bar {
                 alignment: left;
             }
+            QTabBar {
+                background-color: #2b2b2b;
+                border: none;
+            }
             QTabBar::tab {
                 background-color: #3c3c3c;
                 color: #ffffff;
-                padding: 10px 20px;
+                padding: 12px 20px;
                 margin-right: 2px;
-                border-top-left-radius: 5px;
-                border-top-right-radius: 5px;
+                margin-bottom: 0px;
+                border: 1px solid #555555;
+                border-bottom: none;
+                border-top-left-radius: 8px;
+                border-top-right-radius: 8px;
+                min-width: 100px;
+                font-size: 12px;
+                font-weight: bold;
             }
             QTabBar::tab:selected {
                 background-color: #4CAF50;
                 color: white;
+                border-color: #4CAF50;
+                margin-bottom: -1px;
             }
-            QTabBar::tab:hover {
+            QTabBar::tab:hover:!selected {
                 background-color: #555555;
+                color: #ffffff;
+            }
+            QTabBar::tab:first {
+                margin-left: 0px;
+            }
+            QTabBar::tab:last {
+                margin-right: 0px;
             }
             QLabel {
                 color: #ffffff;
@@ -783,15 +818,68 @@ class TezgahTakipMainWindow(QMainWindow):
         """)
     
     def setup_ui(self):
-        """Ana arayüzü oluştur"""
+        """Ana arayüzü oluştur - Tab widget sistemi"""
         central_widget = QWidget()
         self.setCentralWidget(central_widget)
         
         # Ana layout
         main_layout = QVBoxLayout()
+        main_layout.setContentsMargins(0, 0, 0, 0)
+        main_layout.setSpacing(0)
         
-        # Tab widget
+        # Tab widget - Güçlü stil ile
         self.tab_widget = QTabWidget()
+        self.tab_widget.setStyleSheet("""
+            QTabWidget {
+                background-color: #2b2b2b;
+                border: none;
+            }
+            QTabWidget::pane {
+                border: 1px solid #555555;
+                background-color: #2b2b2b;
+                top: -1px;
+            }
+            QTabWidget::tab-bar {
+                alignment: left;
+                background-color: #2b2b2b;
+            }
+            QTabBar {
+                background-color: #2b2b2b;
+                border: none;
+                qproperty-drawBase: 0;
+            }
+            QTabBar::tab {
+                background-color: #3c3c3c;
+                color: #ffffff;
+                padding: 12px 20px;
+                margin-right: 2px;
+                margin-bottom: 0px;
+                border: 1px solid #555555;
+                border-bottom: none;
+                border-top-left-radius: 8px;
+                border-top-right-radius: 8px;
+                min-width: 100px;
+                max-width: 200px;
+                font-size: 12px;
+                font-weight: bold;
+            }
+            QTabBar::tab:selected {
+                background-color: #4CAF50;
+                color: white;
+                border-color: #4CAF50;
+                margin-bottom: -1px;
+            }
+            QTabBar::tab:hover:!selected {
+                background-color: #555555;
+                color: #ffffff;
+            }
+            QTabBar::tab:first {
+                margin-left: 0px;
+            }
+            QTabBar::tab:last {
+                margin-right: 0px;
+            }
+        """)
         
         # Dashboard sekmesi
         self.dashboard_tab = self.create_dashboard_tab()
@@ -817,8 +905,212 @@ class TezgahTakipMainWindow(QMainWindow):
         self.ai_tab = self.create_ai_tab()
         self.tab_widget.addTab(self.ai_tab, "🧠 AI Analiz")
         
+        # Ayarlar sekmesi
+        self.ayarlar_tab = self.create_ayarlar_tab()
+        self.tab_widget.addTab(self.ayarlar_tab, "⚙️ Ayarlar")
+        
+        # Tab widget'ı zorla görünür yap
+        self.tab_widget.setVisible(True)
+        self.tab_widget.show()
+        
         main_layout.addWidget(self.tab_widget)
         central_widget.setLayout(main_layout)
+    
+    def create_toolbar(self):
+        """Üst toolbar oluştur (menü yerine)"""
+        toolbar = self.addToolBar("Ana Toolbar")
+        toolbar.setMovable(False)
+        toolbar.setFloatable(False)
+        toolbar.setToolButtonStyle(Qt.ToolButtonTextBesideIcon)
+        
+        # Toolbar stili
+        toolbar.setStyleSheet("""
+            QToolBar {
+                background-color: #3c3c3c;
+                border: none;
+                border-bottom: 3px solid #4CAF50;
+                spacing: 10px;
+                padding: 5px;
+            }
+            QToolButton {
+                background-color: transparent;
+                color: #ffffff;
+                padding: 8px 15px;
+                border: none;
+                border-radius: 5px;
+                font-size: 12px;
+                font-weight: bold;
+            }
+            QToolButton:hover {
+                background-color: #4CAF50;
+                color: white;
+            }
+            QToolButton:pressed {
+                background-color: #3d8b40;
+            }
+        """)
+        
+        # Toolbar butonları
+        import_action = QAction("📥 İçe Aktar", self)
+        import_action.triggered.connect(self.import_data)
+        toolbar.addAction(import_action)
+        
+        export_action = QAction("📤 Dışa Aktar", self)
+        export_action.triggered.connect(self.export_data)
+        toolbar.addAction(export_action)
+        
+        toolbar.addSeparator()
+        
+        api_action = QAction("🔑 API Anahtarı", self)
+        api_action.triggered.connect(self.show_api_key_settings)
+        toolbar.addAction(api_action)
+        
+        prefs_action = QAction("⚙️ Ayarlar", self)
+        prefs_action.triggered.connect(self.show_preferences)
+        toolbar.addAction(prefs_action)
+        
+        toolbar.addSeparator()
+        
+        about_action = QAction("❓ Hakkında", self)
+        about_action.triggered.connect(self.show_about)
+        toolbar.addAction(about_action)
+        
+        # Toolbar'ı zorla görünür yap
+        toolbar.setVisible(True)
+        toolbar.show()
+        
+        self.logger.info(f"Toolbar created - Visible: {toolbar.isVisible()}")
+    
+    def create_navigation_bar(self):
+        """Navigation bar oluştur (tab yerine)"""
+        self.nav_widget = QWidget()
+        self.nav_widget.setFixedHeight(60)
+        self.nav_widget.setStyleSheet("""
+            QWidget {
+                background-color: #2b2b2b;
+                border-bottom: 2px solid #4CAF50;
+            }
+        """)
+        
+        nav_layout = QHBoxLayout()
+        nav_layout.setContentsMargins(10, 5, 10, 5)
+        nav_layout.setSpacing(5)
+        
+        # Navigation butonları
+        self.nav_buttons = []
+        nav_items = [
+            ("📊 Dashboard", 0),
+            ("🏭 Tezgahlar", 1),
+            ("🔧 Geçmiş Arızalar", 2),
+            ("🔋 Pil Takibi", 3),
+            ("📈 Raporlar", 4),
+            ("🧠 AI Analiz", 5)
+        ]
+        
+        for text, index in nav_items:
+            btn = QPushButton(text, self.nav_widget)  # Parent belirt
+            btn.setCheckable(True)
+            btn.setFixedHeight(45)
+            btn.setMinimumWidth(150)
+            btn.clicked.connect(lambda checked, idx=index: self.show_page(idx))
+            
+            # Button stili
+            btn.setStyleSheet("""
+                QPushButton {
+                    background-color: #3c3c3c;
+                    color: #ffffff;
+                    border: 2px solid #555555;
+                    border-radius: 8px;
+                    padding: 8px 15px;
+                    font-size: 12px;
+                    font-weight: bold;
+                    text-align: center;
+                }
+                QPushButton:hover {
+                    background-color: #555555;
+                    border-color: #777777;
+                }
+                QPushButton:checked {
+                    background-color: #4CAF50;
+                    border-color: #4CAF50;
+                    color: white;
+                }
+                QPushButton:pressed {
+                    background-color: #3d8b40;
+                }
+            """)
+            
+            self.nav_buttons.append(btn)
+            nav_layout.addWidget(btn)
+        
+        nav_layout.addStretch()
+        self.nav_widget.setLayout(nav_layout)
+        
+        # Navigation widget'ı ana layout'a ekle
+        central_widget = self.centralWidget()
+        if central_widget and central_widget.layout():
+            central_widget.layout().insertWidget(0, self.nav_widget)
+        
+        self.logger.info(f"Navigation bar created with {len(self.nav_buttons)} buttons")
+    
+    def create_pages(self):
+        """Sayfalar oluştur"""
+        # Dashboard sayfası
+        self.dashboard_page = self.create_dashboard_tab()
+        self.content_stack.addWidget(self.dashboard_page)
+        
+        # Tezgahlar sayfası
+        self.tezgah_page = self.create_tezgah_tab()
+        self.content_stack.addWidget(self.tezgah_page)
+        
+        # Bakım sayfası
+        self.bakim_page = self.create_bakim_tab()
+        self.content_stack.addWidget(self.bakim_page)
+        
+        # Pil sayfası
+        self.pil_page = self.create_pil_tab()
+        self.content_stack.addWidget(self.pil_page)
+        
+        # Raporlar sayfası
+        self.rapor_page = self.create_rapor_tab()
+        self.content_stack.addWidget(self.rapor_page)
+        
+        # AI sayfası
+        self.ai_page = self.create_ai_tab()
+        self.content_stack.addWidget(self.ai_page)
+        
+        self.logger.info(f"Created {self.content_stack.count()} pages")
+    
+    def show_page(self, index):
+        """Sayfa göster"""
+        try:
+            # Tüm butonları deaktif et
+            for btn in self.nav_buttons:
+                btn.setChecked(False)
+            
+            # Seçilen butonu aktif et
+            if 0 <= index < len(self.nav_buttons):
+                self.nav_buttons[index].setChecked(True)
+            
+            # Sayfayı göster
+            self.content_stack.setCurrentIndex(index)
+            
+            # Sayfa adını al
+            page_names = ["Dashboard", "Tezgahlar", "Geçmiş Arızalar", "Pil Takibi", "Raporlar", "AI Analiz"]
+            page_name = page_names[index] if index < len(page_names) else f"Sayfa {index}"
+            
+            self.logger.info(f"Showing page: {page_name} (index: {index})")
+            
+        except Exception as e:
+            self.logger.error(f"Show page error: {e}")
+    
+    def create_tabs(self):
+        """Eski tab sistemi - artık kullanılmıyor"""
+        pass
+    
+    def force_widgets_visible(self):
+        """Widget görünürlük zorlaması - artık gerekli değil"""
+        pass
     
     def create_dashboard_tab(self):
         """Modern ve Temiz Dashboard sekmesi"""
@@ -2029,91 +2321,341 @@ class TezgahTakipMainWindow(QMainWindow):
         widget.setLayout(layout)
         return widget
     
+    def create_ayarlar_tab(self):
+        """Ayarlar sekmesini oluştur"""
+        widget = QWidget()
+        main_layout = QVBoxLayout()
+        
+        # Başlık
+        title_label = QLabel("⚙️ Uygulama Ayarları")
+        title_label.setStyleSheet("font-size: 18px; font-weight: bold; color: #4CAF50; margin-bottom: 20px;")
+        main_layout.addWidget(title_label)
+        
+        # Scroll area
+        scroll_area = QScrollArea()
+        scroll_area.setWidgetResizable(True)
+        scroll_area.setHorizontalScrollBarPolicy(Qt.ScrollBarAsNeeded)
+        scroll_area.setVerticalScrollBarPolicy(Qt.ScrollBarAsNeeded)
+        
+        # Ana ayarlar widget'ı
+        settings_widget = QWidget()
+        layout = QVBoxLayout()
+        layout.setSpacing(20)
+        
+        # API Ayarları Grubu
+        api_group = QGroupBox("🔑 API Ayarları")
+        api_layout = QVBoxLayout()
+        
+        api_info_label = QLabel("AI özelliklerini kullanmak için Google Gemini API anahtarı gereklidir.")
+        api_info_label.setStyleSheet("color: #666; font-style: italic; margin-bottom: 10px;")
+        api_info_label.setWordWrap(True)
+        api_layout.addWidget(api_info_label)
+        
+        api_btn = QPushButton("🔑 API Anahtarı Ayarla")
+        api_btn.setStyleSheet("""
+            QPushButton {
+                background-color: #2196F3;
+                color: white;
+                border: none;
+                border-radius: 5px;
+                padding: 10px 20px;
+                font-size: 12px;
+                font-weight: bold;
+            }
+            QPushButton:hover {
+                background-color: #1976D2;
+            }
+        """)
+        api_btn.clicked.connect(self.show_api_key_settings)
+        api_layout.addWidget(api_btn)
+        
+        api_group.setLayout(api_layout)
+        layout.addWidget(api_group)
+        
+        # Veri Yönetimi Grubu
+        data_group = QGroupBox("💾 Veri Yönetimi")
+        data_layout = QVBoxLayout()
+        
+        # İçe Aktar
+        import_btn = QPushButton("📥 Veri İçe Aktar")
+        import_btn.setStyleSheet("""
+            QPushButton {
+                background-color: #4CAF50;
+                color: white;
+                border: none;
+                border-radius: 5px;
+                padding: 10px 20px;
+                font-size: 12px;
+                font-weight: bold;
+                margin: 5px 0;
+            }
+            QPushButton:hover {
+                background-color: #45a049;
+            }
+        """)
+        import_btn.clicked.connect(self.import_data)
+        data_layout.addWidget(import_btn)
+        
+        # Dışa Aktar
+        export_btn = QPushButton("📤 Veri Dışa Aktar")
+        export_btn.setStyleSheet("""
+            QPushButton {
+                background-color: #FF9800;
+                color: white;
+                border: none;
+                border-radius: 5px;
+                padding: 10px 20px;
+                font-size: 12px;
+                font-weight: bold;
+                margin: 5px 0;
+            }
+            QPushButton:hover {
+                background-color: #F57C00;
+            }
+        """)
+        export_btn.clicked.connect(self.export_data)
+        data_layout.addWidget(export_btn)
+        
+        # Yedekleme
+        backup_btn = QPushButton("💾 Manuel Yedekleme")
+        backup_btn.setStyleSheet("""
+            QPushButton {
+                background-color: #9C27B0;
+                color: white;
+                border: none;
+                border-radius: 5px;
+                padding: 10px 20px;
+                font-size: 12px;
+                font-weight: bold;
+                margin: 5px 0;
+            }
+            QPushButton:hover {
+                background-color: #7B1FA2;
+            }
+        """)
+        backup_btn.clicked.connect(self.create_manual_backup)
+        data_layout.addWidget(backup_btn)
+        
+        data_group.setLayout(data_layout)
+        layout.addWidget(data_group)
+        
+        # Uygulama Ayarları Grubu
+        app_group = QGroupBox("🎛️ Uygulama Ayarları")
+        app_layout = QVBoxLayout()
+        
+        # Tercihler
+        prefs_btn = QPushButton("🎛️ Genel Tercihler")
+        prefs_btn.setStyleSheet("""
+            QPushButton {
+                background-color: #607D8B;
+                color: white;
+                border: none;
+                border-radius: 5px;
+                padding: 10px 20px;
+                font-size: 12px;
+                font-weight: bold;
+                margin: 5px 0;
+            }
+            QPushButton:hover {
+                background-color: #455A64;
+            }
+        """)
+        prefs_btn.clicked.connect(self.show_preferences)
+        app_layout.addWidget(prefs_btn)
+        
+        # Sistem Sağlığı
+        health_btn = QPushButton("🏥 Sistem Sağlığı")
+        health_btn.setStyleSheet("""
+            QPushButton {
+                background-color: #E91E63;
+                color: white;
+                border: none;
+                border-radius: 5px;
+                padding: 10px 20px;
+                font-size: 12px;
+                font-weight: bold;
+                margin: 5px 0;
+            }
+            QPushButton:hover {
+                background-color: #C2185B;
+            }
+        """)
+        health_btn.clicked.connect(self.show_system_health)
+        app_layout.addWidget(health_btn)
+        
+        app_group.setLayout(app_layout)
+        layout.addWidget(app_group)
+        
+        # Hakkında Grubu
+        about_group = QGroupBox("ℹ️ Hakkında")
+        about_layout = QVBoxLayout()
+        
+        version_label = QLabel("TezgahTakip v2.1.1")
+        version_label.setStyleSheet("font-size: 14px; font-weight: bold; color: #4CAF50; margin: 5px 0;")
+        about_layout.addWidget(version_label)
+        
+        desc_label = QLabel("AI Güçlü Fabrika Bakım Yönetim Sistemi")
+        desc_label.setStyleSheet("color: #666; font-style: italic; margin-bottom: 10px;")
+        about_layout.addWidget(desc_label)
+        
+        about_btn = QPushButton("ℹ️ Detaylı Bilgi")
+        about_btn.setStyleSheet("""
+            QPushButton {
+                background-color: #795548;
+                color: white;
+                border: none;
+                border-radius: 5px;
+                padding: 10px 20px;
+                font-size: 12px;
+                font-weight: bold;
+                margin: 5px 0;
+            }
+            QPushButton:hover {
+                background-color: #5D4037;
+            }
+        """)
+        about_btn.clicked.connect(self.show_about)
+        about_layout.addWidget(about_btn)
+        
+        about_group.setLayout(about_layout)
+        layout.addWidget(about_group)
+        
+        layout.addStretch()
+        settings_widget.setLayout(layout)
+        
+        scroll_area.setWidget(settings_widget)
+        main_layout.addWidget(scroll_area)
+        
+        widget.setLayout(main_layout)
+        return widget
+    
     def setup_menu(self):
-        """Menü çubuğunu oluştur"""
-        menubar = self.menuBar()
-        
-        # Dosya menüsü
-        file_menu = menubar.addMenu("📁 Dosya")
-        
-        export_action = QAction("📤 Dışa Aktar", self)
-        export_action.triggered.connect(self.export_data)
-        file_menu.addAction(export_action)
-        
-        import_action = QAction("📥 İçe Aktar", self)
-        import_action.triggered.connect(self.import_data)
-        file_menu.addAction(import_action)
-        
-        file_menu.addSeparator()
-        
-        # Yedekleme menüsü
-        backup_menu = file_menu.addMenu("💾 Yedekleme")
-        
-        create_backup_action = QAction("📦 Yedek Oluştur", self)
-        create_backup_action.triggered.connect(self.create_manual_backup)
-        backup_menu.addAction(create_backup_action)
-        
-        restore_backup_action = QAction("� Yeadekten Geri Yükle", self)
-        restore_backup_action.triggered.connect(self.restore_backup)
-        backup_menu.addAction(restore_backup_action)
-        
-        list_backups_action = QAction("📋 Yedekleri Listele", self)
-        list_backups_action.triggered.connect(self.list_backups)
-        backup_menu.addAction(list_backups_action)
-        
-        file_menu.addSeparator()
-        
-        exit_action = QAction("❌ Çıkış", self)
-        exit_action.triggered.connect(self.close)
-        file_menu.addAction(exit_action)
-        
-        # Ayarlar menüsü
-        settings_menu = menubar.addMenu("⚙️ Ayarlar")
-        
-        api_key_action = QAction("🔑 API Anahtarı", self)
-        api_key_action.triggered.connect(self.show_api_key_settings)
-        settings_menu.addAction(api_key_action)
-        
-        # Güncelleme Kontrolü
-        update_action = QAction("🔄 Güncelleme Kontrol", self)
-        update_action.triggered.connect(self.check_for_updates)
-        settings_menu.addAction(update_action)
-        
-        settings_menu.addSeparator()
-        
-        settings_menu.addSeparator()
-        
-        preferences_action = QAction("🎛️ Tercihler", self)
-        preferences_action.triggered.connect(self.show_preferences)
-        settings_menu.addAction(preferences_action)
-        
-        # Accessibility menüsü
-        accessibility_menu = settings_menu.addMenu("♿ Erişilebilirlik")
-        
-        high_contrast_action = QAction("🔆 Yüksek Kontrast", self)
-        high_contrast_action.setCheckable(True)
-        high_contrast_action.setChecked(self.config_manager.get("accessibility.high_contrast", False))
-        high_contrast_action.triggered.connect(self.toggle_high_contrast)
-        accessibility_menu.addAction(high_contrast_action)
-        
-        font_size_menu = accessibility_menu.addMenu("🔤 Font Boyutu")
-        
-        font_sizes = ["small", "normal", "large", "extra_large"]
-        current_font_size = self.config_manager.get("accessibility.font_size", "normal")
-        
-        for size in font_sizes:
-            font_action = QAction(size.title(), self)
-            font_action.setCheckable(True)
-            font_action.setChecked(size == current_font_size)
-            font_action.triggered.connect(lambda checked, s=size: self.change_font_size(s))
-            font_size_menu.addAction(font_action)
-        
-        # Yardım menüsü
-        help_menu = menubar.addMenu("❓ Yardım")
-        
-        about_action = QAction("ℹ️ Hakkında", self)
-        about_action.triggered.connect(self.show_about)
-        help_menu.addAction(about_action)
+        """Menü çubuğunu oluştur - Zorla görünür yaklaşım"""
+        try:
+            # Mevcut menü çubuğunu tamamen sil
+            self.setMenuBar(None)
+            
+            # Yeni menü çubuğu oluştur ve zorla ayarla
+            menubar = QMenuBar(self)
+            self.setMenuBar(menubar)
+            
+            # Menü çubuğunu zorla görünür yap - Her türlü yöntemle
+            menubar.setVisible(True)
+            menubar.setEnabled(True)
+            menubar.show()
+            menubar.setFixedHeight(35)
+            menubar.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
+            
+            # Menü çubuğunu pencereye zorla bağla
+            menubar.setParent(self)
+            
+            # v2.0.0 tarzı koyu tema stil
+            menubar.setStyleSheet("""
+                QMenuBar {
+                    background-color: #3c3c3c;
+                    color: #ffffff;
+                    border: none;
+                    border-bottom: 3px solid #4CAF50;
+                    font-size: 13px;
+                    font-weight: bold;
+                    font-family: "Segoe UI", Arial, sans-serif;
+                    padding: 3px;
+                    spacing: 5px;
+                }
+                QMenuBar::item {
+                    background-color: transparent;
+                    padding: 8px 16px;
+                    margin: 1px 3px;
+                    color: #ffffff;
+                    border-radius: 5px;
+                }
+                QMenuBar::item:selected {
+                    background-color: #4CAF50;
+                    color: white;
+                }
+                QMenuBar::item:pressed {
+                    background-color: #3d8b40;
+                }
+                QMenu {
+                    background-color: #3c3c3c;
+                    color: #ffffff;
+                    border: 3px solid #4CAF50;
+                    border-radius: 8px;
+                    font-size: 12px;
+                    padding: 8px;
+                }
+                QMenu::item {
+                    padding: 10px 25px;
+                    margin: 3px;
+                    border-radius: 5px;
+                }
+                QMenu::item:selected {
+                    background-color: #4CAF50;
+                    color: white;
+                }
+                QMenu::separator {
+                    height: 3px;
+                    background-color: #555555;
+                    margin: 8px 15px;
+                }
+            """)
+            
+            # Dosya menüsü
+            file_menu = menubar.addMenu("📁 Dosya")
+            
+            import_action = QAction("� İıçe Aktar...", self)
+            import_action.setShortcut("Ctrl+I")
+            import_action.triggered.connect(self.import_data)
+            file_menu.addAction(import_action)
+            
+            export_action = QAction("📤 Dışa Aktar...", self)
+            export_action.setShortcut("Ctrl+E")
+            export_action.triggered.connect(self.export_data)
+            file_menu.addAction(export_action)
+            
+            file_menu.addSeparator()
+            
+            exit_action = QAction("🚪 Çıkış", self)
+            exit_action.setShortcut("Alt+F4")
+            exit_action.triggered.connect(self.close)
+            file_menu.addAction(exit_action)
+            
+            # Ayarlar menüsü
+            settings_menu = menubar.addMenu("⚙️ Ayarlar")
+            
+            api_action = QAction("🔑 API Anahtarı...", self)
+            api_action.triggered.connect(self.show_api_key_settings)
+            settings_menu.addAction(api_action)
+            
+            prefs_action = QAction("🎛️ Tercihler...", self)
+            prefs_action.setShortcut("Ctrl+,")
+            prefs_action.triggered.connect(self.show_preferences)
+            settings_menu.addAction(prefs_action)
+            
+            # Yardım menüsü
+            help_menu = menubar.addMenu("❓ Yardım")
+            
+            about_action = QAction("ℹ️ Hakkında...", self)
+            about_action.setShortcut("F1")
+            about_action.triggered.connect(self.show_about)
+            help_menu.addAction(about_action)
+            
+            # Menü çubuğunu zorla aktif et
+            menubar.update()
+            menubar.repaint()
+            menubar.raise_()
+            menubar.activateWindow()
+            
+            # Pencereyi yeniden boyutlandır (menü çubuğu için yer aç)
+            current_size = self.size()
+            self.resize(current_size.width(), current_size.height() + 35)
+            
+            self.logger.info(f"Forced menu bar created - Height: {menubar.height()}, Visible: {menubar.isVisible()}, Parent: {menubar.parent()}")
+            
+        except Exception as e:
+            self.logger.error(f"Setup menu error: {e}")
+            import traceback
+            self.logger.error(f"Traceback: {traceback.format_exc()}")
     
     def toggle_high_contrast(self, checked):
         """Yüksek kontrast temasını aç/kapat"""
@@ -2352,7 +2894,7 @@ class TezgahTakipMainWindow(QMainWindow):
         self.api_status_label = QLabel("API: Kontrol ediliyor...")
         self.status_bar.addWidget(self.api_status_label)
         
-        self.status_bar.addPermanentWidget(QLabel(f"TezgahTakip v2.0 - {datetime.now().strftime('%Y-%m-%d')}"))
+        self.status_bar.addPermanentWidget(QLabel(f"TezgahTakip v2.1 - {datetime.now().strftime('%Y-%m-%d')}"))
     
     def setup_timers(self):
         """Timer'ları ayarla"""
@@ -4170,8 +4712,8 @@ class TezgahTakipMainWindow(QMainWindow):
         """Hakkında dialog'unu göster"""
         about_text = """🏭 TezgahTakip - AI Güçlü Fabrika Bakım Yönetim Sistemi
 
-Versiyon: 2.0.0
-Geliştirme Tarihi: Aralık 2025
+Versiyon: 2.1.1
+Geliştirme Tarihi: Ocak 2026
 
 Özellikler:
 • AI destekli bakım analizi (Google Gemini)
@@ -4181,6 +4723,8 @@ Geliştirme Tarihi: Aralık 2025
 • Modern kullanıcı arayüzü
 • Gerçek zamanlı dashboard
 • Otomatik yedekleme sistemi
+• Tab sekmeli arayüz
+• Kapsamlı ayarlar paneli
 
 Teknoloji:
 • Python 3.7+ & PyQt5
@@ -4188,9 +4732,9 @@ Teknoloji:
 • Google Gemini AI
 • Fernet Şifreleme
 
-© 2025 TezgahTakip - Tüm hakları saklıdır"""
+© 2026 TezgahTakip - Tüm hakları saklıdır"""
         
-        CustomMessageBox.information(self, "ℹ️ Hakkında - TezgahTakip v2.0", about_text)
+        CustomMessageBox.information(self, "ℹ️ Hakkında - TezgahTakip v2.1.1", about_text)
     
     def export_data(self):
         """Veri dışa aktarma"""
