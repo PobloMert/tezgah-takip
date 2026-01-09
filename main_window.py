@@ -9,6 +9,7 @@ import sys
 import os
 import re
 import logging
+import sqlite3
 from datetime import datetime, timedelta, timezone
 from typing import Optional, List, Dict, Any
 from PyQt5.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout, 
@@ -19,7 +20,8 @@ from PyQt5.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout,
                             QSplitter, QGroupBox, QComboBox, QDateEdit,
                             QLineEdit, QSpinBox, QCheckBox, QDialog, QShortcut,
                             QScrollArea, QGraphicsDropShadowEffect, QSizePolicy,
-                            QGraphicsOpacityEffect)
+                            QGraphicsOpacityEffect, QProgressDialog, QFileDialog,
+                            QRadioButton)
 from PyQt5.QtCore import Qt, QTimer, QThread, pyqtSignal, QDate, QSize, QRect, QPropertyAnimation, QEasingCurve, QVariantAnimation
 from PyQt5.QtGui import QFont, QIcon, QPalette, QColor, QKeySequence
 
@@ -29,7 +31,7 @@ from gemini_ai import GeminiAI
 from api_key_dialog import show_api_key_dialog
 from api_key_manager import APIKeyManager
 from config_manager import ConfigManager
-from backup_manager import BackupManager
+from advanced_backup_manager import AdvancedBackupManager
 from accessibility_manager import AccessibilityManager
 from progress_manager import ProgressManager
 from exception_handler import handle_exceptions, database_operation, validation_required, DatabaseException, ValidationException
@@ -277,15 +279,17 @@ class AIInsightWidget(QWidget):
         if not self.gemini_ai.has_api_key():
             self.insight_text.setPlainText(
                 "🔑 AI İçgörüleri\n\n"
-                "AI özelliklerini kullanmak için API anahtarı gereklidir.\n\n"
-                "📋 API anahtarı ile neler yapabilirsiniz:\n"
+                "AI özelliklerini kullanmak için Google Gemini API anahtarı gereklidir.\n\n"
+                "🤖 API anahtarı ile neler yapabilirsiniz:\n"
                 "• Akıllı bakım analizi ve önerileri\n"
                 "• Pil ömrü tahmini ve uyarıları\n"
                 "• Performans trend analizi\n"
                 "• Maliyet optimizasyonu önerileri\n"
-                "• Özelleştirilmiş bakım programları\n\n"
+                "• Özelleştirilmiş bakım programları\n"
+                "• Soru-cevap sistemi\n\n"
                 "🔗 API anahtarını 'Ayarlar > API Anahtarı' menüsünden girebilirsiniz.\n"
-                "🌐 Ücretsiz API anahtarı: https://makersuite.google.com"
+                "🌐 Ücretsiz API anahtarı: https://makersuite.google.com/app/apikey\n\n"
+                "💡 İpucu: API anahtarı tamamen ücretsizdir ve dakikalar içinde alabilirsiniz!"
             )
             return
         
@@ -327,9 +331,21 @@ class AIInsightWidget(QWidget):
         from PyQt5.QtWidgets import QInputDialog
         
         if not self.gemini_ai.has_api_key():
-            CustomMessageBox.information(self, "⚠️ API Anahtarı Gerekli", 
-                              "AI özelliklerini kullanmak için API anahtarı gerekli.\nAyarlar > API Anahtarı menüsünden girin.")
-            return
+            # API anahtarı yoksa kullanıcıya seçenek sun
+            result = CustomMessageBox.question(self, "🔑 API Anahtarı Gerekli", 
+                "AI özelliklerini kullanmak için Google Gemini API anahtarı gereklidir.\n\n"
+                "🤖 AI ile neler yapabilirsiniz:\n"
+                "• Akıllı bakım analizi ve öneriler\n"
+                "• Pil ömrü tahmini\n"
+                "• Performans optimizasyonu\n"
+                "• Soru-cevap sistemi\n\n"
+                "API anahtarı ayarlarını şimdi açmak ister misiniz?")
+            
+            if result:
+                self.show_api_key_settings()
+                return
+            else:
+                return
         
         question, ok = QInputDialog.getText(self, "AI'ye Soru Sor", 
                                           "Tezgah takip ve bakım hakkında sorunuzu yazın:")
@@ -354,9 +370,13 @@ class TezgahTakipMainWindow(QMainWindow):
             self.db_manager = DatabaseManager(self.config_manager.get("database.path"))
             self.gemini_ai = GeminiAI(self.db_manager)
             self.api_manager = APIKeyManager()
-            self.backup_manager = BackupManager(self.config_manager.get("database.path"))
+            self.backup_manager = AdvancedBackupManager(self.config_manager.get("database.path"))
             self.accessibility_manager = AccessibilityManager()
             self.progress_manager = ProgressManager()
+            
+            # Zamanlanmış yedeklemeyi başlat
+            self.setup_scheduled_backup()
+            
         except Exception as e:
             self.logger.error(f"Initialization error: {e}")
             raise
@@ -377,7 +397,7 @@ class TezgahTakipMainWindow(QMainWindow):
         self.api_timer = None
         
         # UI kurulumu
-        self.setWindowTitle("🏭 TezgahTakip - AI Güçlü Fabrika Bakım Yönetim Sistemi v2.1.1")
+        self.setWindowTitle("🏭 TezgahTakip - AI Güçlü Fabrika Bakım Yönetim Sistemi v2.1.2")
         
         # Responsive window size
         self.setup_responsive_window()
@@ -425,6 +445,10 @@ class TezgahTakipMainWindow(QMainWindow):
                 menubar.activateWindow()
                 menubar.update()
                 menubar.repaint()
+                
+                # Menü çubuğunu zorla enable et
+                menubar.setEnabled(True)
+                menubar.setNativeMenuBar(False)  # Native menü çubuğunu devre dışı bırak
                 
                 self.logger.info(f"Menu bar forced visible - Height: {menubar.height()}, Visible: {menubar.isVisible()}")
             
@@ -480,7 +504,7 @@ class TezgahTakipMainWindow(QMainWindow):
                 backups = self.backup_manager.list_backups()
                 
                 if backups:
-                    last_backup = backups[0]['created_at']
+                    last_backup = backups[0]['date']
                     backup_interval_hours = backup_config.get("backup_interval_hours", 24)
                     
                     if (datetime.now() - last_backup).total_seconds() > backup_interval_hours * 3600:
@@ -606,9 +630,7 @@ class TezgahTakipMainWindow(QMainWindow):
     def setup_responsive_window(self):
         """Responsive pencere boyutu ayarla - DPI aware"""
         try:
-            # DPI scaling'i etkinleştir
-            QApplication.setAttribute(Qt.AA_EnableHighDpiScaling, True)
-            QApplication.setAttribute(Qt.AA_UseHighDpiPixmaps, True)
+            # DPI scaling attributes are already set in main() function
             
             # Ekran boyutunu al
             screen = QApplication.primaryScreen()
@@ -1503,7 +1525,43 @@ class TezgahTakipMainWindow(QMainWindow):
     def show_system_health(self):
         """Sistem sağlığı göster"""
         try:
-            import psutil
+            try:
+                import psutil
+                # Psutil'in çalışıp çalışmadığını test et
+                test_memory = psutil.virtual_memory()
+            except (ImportError, Exception) as e:
+                # Basit sistem bilgileri (psutil olmadan)
+                import os
+                import platform
+                
+                # Veritabanı boyutu
+                try:
+                    db_size = os.path.getsize(self.db_manager.db_path) / (1024 * 1024)  # MB
+                except:
+                    db_size = 0
+                
+                health_info = f"""
+🏥 SİSTEM SAĞLIK RAPORU (Basit Mod)
+{'='*40}
+
+🖥️ Sistem Bilgileri:
+   • İşletim Sistemi: {platform.system()} {platform.release()}
+   • Python Sürümü: {platform.python_version()}
+
+🗄️ Veritabanı:
+   • Boyut: {db_size:.1f} MB
+
+📊 Uygulama Durumu:
+   • Tezgah Sayısı: {self.db_manager.get_tezgah_count()}
+   • Aktif Tezgah: {self.db_manager.get_active_tezgah_count()}
+
+⚠️ Detaylı sistem bilgileri için 'psutil' modülü gerekli.
+   Yüklemek için: pip install psutil
+   Hata: {str(e)}
+"""
+                
+                CustomMessageBox.information(self, "Sistem Sağlığı", health_info)
+                return
             
             # Sistem bilgilerini topla
             memory = psutil.virtual_memory()
@@ -1518,7 +1576,7 @@ class TezgahTakipMainWindow(QMainWindow):
 🏥 SİSTEM SAĞLIK RAPORU
 {'='*40}
 
-💾 Bellek Kullanımı:
+� Bellek Kullanımı:
    • Toplam: {memory.total / (1024**3):.1f} GB
    • Kullanılan: {memory.used / (1024**3):.1f} GB ({memory.percent:.1f}%)
    • Mevcut: {memory.available / (1024**3):.1f} GB
@@ -1560,6 +1618,993 @@ class TezgahTakipMainWindow(QMainWindow):
         except Exception as e:
             self.logger.error(f"System health check error: {e}")
             CustomMessageBox.critical(self, "Hata", f"Sistem sağlığı kontrol edilirken hata oluştu:\n{e}")
+    
+    def show_bakim_context_menu(self, position):
+        """Bakım tablosu sağ tık menüsü"""
+        try:
+            # Seçili satırı al
+            row = self.bakim_table.rowAt(position.y())
+            if row < 0:
+                return
+            
+            # Bakım ID'sini al (gizli sütun olarak saklanabilir veya satır verilerinden çıkarılabilir)
+            tezgah_no = self.bakim_table.item(row, 0).text() if self.bakim_table.item(row, 0) else ""
+            tarih = self.bakim_table.item(row, 1).text() if self.bakim_table.item(row, 1) else ""
+            
+            # Context menu oluştur
+            from PyQt5.QtWidgets import QMenu, QAction
+            menu = QMenu(self)
+            menu.setStyleSheet("""
+                QMenu {
+                    background-color: #3c3c3c;
+                    color: #ffffff;
+                    border: 2px solid #4CAF50;
+                    border-radius: 5px;
+                    padding: 5px;
+                }
+                QMenu::item {
+                    padding: 8px 20px;
+                    border-radius: 3px;
+                }
+                QMenu::item:selected {
+                    background-color: #4CAF50;
+                }
+            """)
+            
+            # Menü öğeleri
+            edit_action = QAction("✏️ Düzenle", self)
+            edit_action.triggered.connect(lambda: self.edit_bakim_record(row, tezgah_no, tarih))
+            menu.addAction(edit_action)
+            
+            delete_action = QAction("🗑️ Sil", self)
+            delete_action.triggered.connect(lambda: self.delete_bakim_record(row, tezgah_no, tarih))
+            menu.addAction(delete_action)
+            
+            menu.addSeparator()
+            
+            details_action = QAction("📋 Detayları Göster", self)
+            details_action.triggered.connect(lambda: self.show_bakim_details(row, tezgah_no, tarih))
+            menu.addAction(details_action)
+            
+            # Menüyü göster
+            menu.exec_(self.bakim_table.mapToGlobal(position))
+            
+        except Exception as e:
+            self.logger.error(f"Bakım context menu error: {e}")
+    
+    def show_pil_context_menu(self, position):
+        """Pil tablosu sağ tık menüsü"""
+        try:
+            # Seçili satırı al
+            row = self.pil_table.rowAt(position.y())
+            if row < 0:
+                return
+            
+            tezgah_no = self.pil_table.item(row, 0).text() if self.pil_table.item(row, 0) else ""
+            eksen = self.pil_table.item(row, 1).text() if self.pil_table.item(row, 1) else ""
+            
+            # Context menu oluştur
+            from PyQt5.QtWidgets import QMenu, QAction
+            menu = QMenu(self)
+            menu.setStyleSheet("""
+                QMenu {
+                    background-color: #3c3c3c;
+                    color: #ffffff;
+                    border: 2px solid #4CAF50;
+                    border-radius: 5px;
+                    padding: 5px;
+                }
+                QMenu::item {
+                    padding: 8px 20px;
+                    border-radius: 3px;
+                }
+                QMenu::item:selected {
+                    background-color: #4CAF50;
+                }
+            """)
+            
+            # Menü öğeleri
+            edit_action = QAction("✏️ Düzenle", self)
+            edit_action.triggered.connect(lambda: self.edit_pil_record(row, tezgah_no, eksen))
+            menu.addAction(edit_action)
+            
+            delete_action = QAction("🗑️ Sil", self)
+            delete_action.triggered.connect(lambda: self.delete_pil_record(row, tezgah_no, eksen))
+            menu.addAction(delete_action)
+            
+            menu.addSeparator()
+            
+            details_action = QAction("📋 Detayları Göster", self)
+            details_action.triggered.connect(lambda: self.show_pil_details(row, tezgah_no, eksen))
+            menu.addAction(details_action)
+            
+            change_action = QAction("🔄 Pil Değiştir", self)
+            change_action.triggered.connect(lambda: self.change_battery(row, tezgah_no, eksen))
+            menu.addAction(change_action)
+            
+            # Menüyü göster
+            menu.exec_(self.pil_table.mapToGlobal(position))
+            
+        except Exception as e:
+            self.logger.error(f"Pil context menu error: {e}")
+    
+    def edit_bakim_record(self, row, tezgah_no, tarih):
+        """Bakım kaydını düzenle"""
+        try:
+            # Bakım kaydını veritabanından bul
+            with self.db_manager.get_session() as session:
+                # Tezgah numarası ve tarihe göre bakım kaydını bul
+                tezgah = session.query(Tezgah).filter_by(numarasi=tezgah_no).first()
+                if not tezgah:
+                    CustomMessageBox.warning(self, "Uyarı", "Tezgah bulunamadı!")
+                    return
+                
+                # Tarihi parse et
+                from datetime import datetime
+                try:
+                    tarih_obj = datetime.strptime(tarih, "%d.%m.%Y")
+                except:
+                    CustomMessageBox.warning(self, "Uyarı", "Tarih formatı hatalı!")
+                    return
+                
+                bakim = session.query(Bakim).filter(
+                    Bakim.tezgah_id == tezgah.id,
+                    Bakim.tarih >= tarih_obj,
+                    Bakim.tarih < tarih_obj + timedelta(days=1)
+                ).first()
+                
+                if not bakim:
+                    CustomMessageBox.warning(self, "Uyarı", "Bakım kaydı bulunamadı!")
+                    return
+                
+                # Düzenleme dialog'unu aç
+                self.open_edit_bakim_dialog(bakim)
+                
+        except Exception as e:
+            self.logger.error(f"Edit bakim record error: {e}")
+            CustomMessageBox.critical(self, "Hata", f"Bakım kaydı düzenlenirken hata oluştu:\n{e}")
+    
+    def delete_bakim_record(self, row, tezgah_no, tarih):
+        """Bakım kaydını sil"""
+        try:
+            # Onay al
+            reply = CustomMessageBox.question(self, "Onay", 
+                f"Bu bakım kaydını silmek istediğinizden emin misiniz?\n\n"
+                f"Tezgah: {tezgah_no}\n"
+                f"Tarih: {tarih}")
+            
+            if not reply:  # False ise çık
+                return
+            
+            # Bakım kaydını veritabanından sil
+            with self.db_manager.get_session() as session:
+                tezgah = session.query(Tezgah).filter_by(numarasi=tezgah_no).first()
+                if not tezgah:
+                    CustomMessageBox.warning(self, "Uyarı", "Tezgah bulunamadı!")
+                    return
+                
+                from datetime import datetime, timedelta
+                try:
+                    tarih_obj = datetime.strptime(tarih, "%d.%m.%Y")
+                except:
+                    CustomMessageBox.warning(self, "Uyarı", "Tarih formatı hatalı!")
+                    return
+                
+                bakim = session.query(Bakim).filter(
+                    Bakim.tezgah_id == tezgah.id,
+                    Bakim.tarih >= tarih_obj,
+                    Bakim.tarih < tarih_obj + timedelta(days=1)
+                ).first()
+                
+                if bakim:
+                    session.delete(bakim)
+                    session.commit()
+                    
+                    # Tabloyu yenile
+                    self.refresh_bakim_table()
+                    
+                    CustomMessageBox.information(self, "Başarılı", "Bakım kaydı silindi!")
+                else:
+                    CustomMessageBox.warning(self, "Uyarı", "Bakım kaydı bulunamadı!")
+                
+        except Exception as e:
+            self.logger.error(f"Delete bakim record error: {e}")
+            CustomMessageBox.critical(self, "Hata", f"Bakım kaydı silinirken hata oluştu:\n{e}")
+    
+    def edit_pil_record(self, row, tezgah_no, eksen):
+        """Pil kaydını düzenle"""
+        try:
+            # Pil kaydını veritabanından bul
+            with self.db_manager.get_session() as session:
+                tezgah = session.query(Tezgah).filter_by(numarasi=tezgah_no).first()
+                if not tezgah:
+                    CustomMessageBox.warning(self, "Uyarı", "Tezgah bulunamadı!")
+                    return
+                
+                pil = session.query(Pil).filter(
+                    Pil.tezgah_id == tezgah.id,
+                    Pil.eksen == eksen
+                ).first()
+                
+                if not pil:
+                    CustomMessageBox.warning(self, "Uyarı", "Pil kaydı bulunamadı!")
+                    return
+                
+                # Düzenleme dialog'unu aç
+                self.open_edit_pil_dialog(pil)
+                
+        except Exception as e:
+            self.logger.error(f"Edit pil record error: {e}")
+            CustomMessageBox.critical(self, "Hata", f"Pil kaydı düzenlenirken hata oluştu:\n{e}")
+    
+    def delete_pil_record(self, row, tezgah_no, eksen):
+        """Pil kaydını sil"""
+        try:
+            # Onay al
+            reply = CustomMessageBox.question(self, "Onay", 
+                f"Bu pil kaydını silmek istediğinizden emin misiniz?\n\n"
+                f"Tezgah: {tezgah_no}\n"
+                f"Eksen: {eksen}")
+            
+            if not reply:  # False ise çık
+                return
+            
+            # Pil kaydını veritabanından sil
+            with self.db_manager.get_session() as session:
+                tezgah = session.query(Tezgah).filter_by(numarasi=tezgah_no).first()
+                if not tezgah:
+                    CustomMessageBox.warning(self, "Uyarı", "Tezgah bulunamadı!")
+                    return
+                
+                pil = session.query(Pil).filter(
+                    Pil.tezgah_id == tezgah.id,
+                    Pil.eksen == eksen
+                ).first()
+                
+                if pil:
+                    session.delete(pil)
+                    session.commit()
+                    
+                    # Tabloyu yenile
+                    self.refresh_pil_table()
+                    
+                    CustomMessageBox.information(self, "Başarılı", "Pil kaydı silindi!")
+                else:
+                    CustomMessageBox.warning(self, "Uyarı", "Pil kaydı bulunamadı!")
+                
+        except Exception as e:
+            self.logger.error(f"Delete pil record error: {e}")
+            CustomMessageBox.critical(self, "Hata", f"Pil kaydı silinirken hata oluştu:\n{e}")
+    
+    def show_bakim_details(self, row, tezgah_no, tarih):
+        """Bakım detaylarını göster"""
+        try:
+            with self.db_manager.get_session() as session:
+                tezgah = session.query(Tezgah).filter_by(numarasi=tezgah_no).first()
+                if not tezgah:
+                    return
+                
+                from datetime import datetime, timedelta
+                tarih_obj = datetime.strptime(tarih, "%d.%m.%Y")
+                
+                bakim = session.query(Bakim).filter(
+                    Bakim.tezgah_id == tezgah.id,
+                    Bakim.tarih >= tarih_obj,
+                    Bakim.tarih < tarih_obj + timedelta(days=1)
+                ).first()
+                
+                if bakim:
+                    details = f"""
+🔧 BAKIM DETAYLARI
+{'='*30}
+
+🏭 Tezgah: {tezgah.numarasi} - {tezgah.aciklama}
+📅 Tarih: {bakim.tarih.strftime('%d.%m.%Y %H:%M') if bakim.tarih else 'Bilinmiyor'}
+👤 Bakım Yapan: {bakim.bakim_yapan}
+📝 Açıklama: {bakim.aciklama or 'Açıklama yok'}
+📊 Durum: {bakim.durum}
+🔧 Bakım Türü: {bakim.bakim_turu or 'Belirtilmemiş'}
+💰 Maliyet: {bakim.maliyet or 'Belirtilmemiş'}
+"""
+                    CustomMessageBox.information(self, "Bakım Detayları", details)
+                
+        except Exception as e:
+            self.logger.error(f"Show bakim details error: {e}")
+    
+    def show_pil_details(self, row, tezgah_no, eksen):
+        """Pil detaylarını göster"""
+        try:
+            with self.db_manager.get_session() as session:
+                tezgah = session.query(Tezgah).filter_by(numarasi=tezgah_no).first()
+                if not tezgah:
+                    return
+                
+                pil = session.query(Pil).filter(
+                    Pil.tezgah_id == tezgah.id,
+                    Pil.eksen == eksen
+                ).first()
+                
+                if pil:
+                    # Pil yaşını hesapla
+                    from datetime import datetime, timezone
+                    if pil.degisim_tarihi:
+                        if pil.degisim_tarihi.tzinfo is None:
+                            pil_age = (datetime.now() - pil.degisim_tarihi).days
+                        else:
+                            pil_age = (datetime.now(timezone.utc) - pil.degisim_tarihi).days
+                    else:
+                        pil_age = 0
+                    
+                    details = f"""
+🔋 PİL DETAYLARI
+{'='*30}
+
+🏭 Tezgah: {tezgah.numarasi} - {tezgah.aciklama}
+⚡ Eksen: {pil.eksen}
+🔋 Model: {pil.pil_modeli or 'Belirtilmemiş'}
+📅 Değişim Tarihi: {pil.degisim_tarihi.strftime('%d.%m.%Y') if pil.degisim_tarihi else 'Bilinmiyor'}
+👤 Değiştiren: {pil.degistiren_kisi}
+📊 Durum: {pil.durum}
+⏰ Pil Yaşı: {pil_age} gün
+🔢 Seri No: {pil.pil_seri_no or 'Belirtilmemiş'}
+⚡ Voltaj: {pil.voltaj or 'Belirtilmemiş'}
+📝 Açıklama: {pil.aciklama or 'Açıklama yok'}
+"""
+                    CustomMessageBox.information(self, "Pil Detayları", details)
+                
+        except Exception as e:
+            self.logger.error(f"Show pil details error: {e}")
+    
+    def open_edit_bakim_dialog(self, bakim):
+        """Bakım düzenleme dialog'unu aç"""
+        try:
+            from PyQt5.QtWidgets import QDialog, QVBoxLayout, QHBoxLayout, QLabel, QLineEdit, QTextEdit, QComboBox, QDateEdit, QPushButton, QFormLayout
+            from PyQt5.QtCore import QDate
+            
+            dialog = QDialog(self)
+            dialog.setWindowTitle("✏️ Bakım Kaydını Düzenle")
+            dialog.setFixedSize(500, 400)
+            dialog.setModal(True)
+            
+            # Stil
+            dialog.setStyleSheet("""
+                QDialog {
+                    background-color: #2b2b2b;
+                    color: #ffffff;
+                }
+                QLabel {
+                    color: #ffffff;
+                    font-size: 12px;
+                }
+                QLineEdit, QTextEdit, QComboBox, QDateEdit {
+                    background-color: #3c3c3c;
+                    border: 2px solid #555555;
+                    border-radius: 5px;
+                    padding: 5px;
+                    color: #ffffff;
+                    font-size: 11px;
+                }
+                QLineEdit:focus, QTextEdit:focus, QComboBox:focus, QDateEdit:focus {
+                    border-color: #4CAF50;
+                }
+                QPushButton {
+                    background-color: #4CAF50;
+                    color: white;
+                    border: none;
+                    border-radius: 5px;
+                    padding: 10px 20px;
+                    font-size: 11px;
+                    font-weight: bold;
+                }
+                QPushButton:hover {
+                    background-color: #45a049;
+                }
+                QPushButton[class="cancel"] {
+                    background-color: #666666;
+                }
+                QPushButton[class="cancel"]:hover {
+                    background-color: #555555;
+                }
+            """)
+            
+            layout = QVBoxLayout()
+            form_layout = QFormLayout()
+            
+            # Tezgah bilgisi (sadece gösterim)
+            with self.db_manager.get_session() as session:
+                tezgah = session.query(Tezgah).filter_by(id=bakim.tezgah_id).first()
+                tezgah_info = QLabel(f"{tezgah.numarasi} - {tezgah.aciklama}" if tezgah else "Bilinmiyor")
+                form_layout.addRow("🏭 Tezgah:", tezgah_info)
+            
+            # Tarih
+            tarih_edit = QDateEdit()
+            if bakim.tarih:
+                tarih_edit.setDate(QDate(bakim.tarih.year, bakim.tarih.month, bakim.tarih.day))
+            else:
+                tarih_edit.setDate(QDate.currentDate())
+            tarih_edit.setCalendarPopup(True)
+            tarih_edit.setDisplayFormat("dd.MM.yyyy")
+            form_layout.addRow("📅 Tarih:", tarih_edit)
+            
+            # Bakım yapan
+            bakim_yapan_edit = QLineEdit(bakim.bakim_yapan or "")
+            form_layout.addRow("👤 Bakım Yapan:", bakim_yapan_edit)
+            
+            # Durum
+            durum_combo = QComboBox()
+            durum_combo.addItems(['Planlandı', 'Devam Ediyor', 'Tamamlandı', 'İptal Edildi'])
+            if bakim.durum:
+                index = durum_combo.findText(bakim.durum)
+                if index >= 0:
+                    durum_combo.setCurrentIndex(index)
+            form_layout.addRow("📊 Durum:", durum_combo)
+            
+            # Bakım türü
+            tur_combo = QComboBox()
+            tur_combo.addItems(['Periyodik', 'Arızalı', 'Acil', 'Önleyici'])
+            if bakim.bakim_turu:
+                index = tur_combo.findText(bakim.bakim_turu)
+                if index >= 0:
+                    tur_combo.setCurrentIndex(index)
+            form_layout.addRow("🔧 Bakım Türü:", tur_combo)
+            
+            # Maliyet
+            maliyet_edit = QLineEdit(str(bakim.maliyet) if bakim.maliyet else "")
+            maliyet_edit.setPlaceholderText("Örn: 150.50")
+            form_layout.addRow("💰 Maliyet (TL):", maliyet_edit)
+            
+            # Açıklama
+            aciklama_edit = QTextEdit(bakim.aciklama or "")
+            aciklama_edit.setMaximumHeight(80)
+            form_layout.addRow("📝 Açıklama:", aciklama_edit)
+            
+            layout.addLayout(form_layout)
+            
+            # Butonlar
+            button_layout = QHBoxLayout()
+            button_layout.addStretch()
+            
+            save_btn = QPushButton("💾 Kaydet")
+            save_btn.clicked.connect(lambda: self.save_bakim_changes(
+                dialog, bakim, tarih_edit, bakim_yapan_edit, durum_combo, 
+                tur_combo, maliyet_edit, aciklama_edit))
+            button_layout.addWidget(save_btn)
+            
+            cancel_btn = QPushButton("❌ İptal")
+            cancel_btn.setProperty("class", "cancel")
+            cancel_btn.clicked.connect(dialog.reject)
+            button_layout.addWidget(cancel_btn)
+            
+            layout.addLayout(button_layout)
+            dialog.setLayout(layout)
+            
+            dialog.exec_()
+            
+        except Exception as e:
+            self.logger.error(f"Open edit bakim dialog error: {e}")
+            CustomMessageBox.critical(self, "Hata", f"Düzenleme dialog'u açılırken hata oluştu:\n{e}")
+    
+    def save_bakim_changes(self, dialog, bakim, tarih_edit, bakim_yapan_edit, durum_combo, tur_combo, maliyet_edit, aciklama_edit):
+        """Bakım değişikliklerini kaydet"""
+        try:
+            # Validasyon
+            bakim_yapan = bakim_yapan_edit.text().strip()
+            if not bakim_yapan:
+                CustomMessageBox.warning(self, "Uyarı", "Bakım yapan kişi boş olamaz!")
+                return
+            
+            # Maliyet kontrolü
+            maliyet = None
+            if maliyet_edit.text().strip():
+                try:
+                    maliyet = float(maliyet_edit.text().strip())
+                    if maliyet < 0:
+                        CustomMessageBox.warning(self, "Uyarı", "Maliyet negatif olamaz!")
+                        return
+                except ValueError:
+                    CustomMessageBox.warning(self, "Uyarı", "Geçersiz maliyet formatı!")
+                    return
+            
+            # Veritabanını güncelle
+            with self.db_manager.get_session() as session:
+                # Bakım kaydını yeniden al (session içinde)
+                db_bakim = session.query(Bakim).filter_by(id=bakim.id).first()
+                if not db_bakim:
+                    CustomMessageBox.warning(self, "Uyarı", "Bakım kaydı bulunamadı!")
+                    return
+                
+                # Değişiklikleri uygula
+                from datetime import datetime
+                tarih_qdate = tarih_edit.date()
+                db_bakim.tarih = datetime(tarih_qdate.year(), tarih_qdate.month(), tarih_qdate.day())
+                db_bakim.bakim_yapan = bakim_yapan
+                db_bakim.durum = durum_combo.currentText()
+                db_bakim.bakim_turu = tur_combo.currentText()
+                db_bakim.maliyet = maliyet
+                db_bakim.aciklama = aciklama_edit.toPlainText().strip()
+                
+                session.commit()
+                
+                # Tabloyu yenile
+                self.refresh_bakim_table()
+                
+                CustomMessageBox.information(self, "Başarılı", "Bakım kaydı güncellendi!")
+                dialog.accept()
+                
+        except Exception as e:
+            self.logger.error(f"Save bakim changes error: {e}")
+            CustomMessageBox.critical(self, "Hata", f"Değişiklikler kaydedilirken hata oluştu:\n{e}")
+    
+    def open_edit_pil_dialog(self, pil):
+        """Pil düzenleme dialog'unu aç"""
+        try:
+            from PyQt5.QtWidgets import QDialog, QVBoxLayout, QHBoxLayout, QLabel, QLineEdit, QTextEdit, QComboBox, QDateEdit, QPushButton, QFormLayout, QDoubleSpinBox
+            from PyQt5.QtCore import QDate
+            
+            dialog = QDialog(self)
+            dialog.setWindowTitle("🔋 Pil Kaydını Düzenle")
+            dialog.setFixedSize(500, 450)
+            dialog.setModal(True)
+            
+            # Stil (aynı stil)
+            dialog.setStyleSheet("""
+                QDialog {
+                    background-color: #2b2b2b;
+                    color: #ffffff;
+                }
+                QLabel {
+                    color: #ffffff;
+                    font-size: 12px;
+                }
+                QLineEdit, QTextEdit, QComboBox, QDateEdit, QDoubleSpinBox {
+                    background-color: #3c3c3c;
+                    border: 2px solid #555555;
+                    border-radius: 5px;
+                    padding: 5px;
+                    color: #ffffff;
+                    font-size: 11px;
+                }
+                QLineEdit:focus, QTextEdit:focus, QComboBox:focus, QDateEdit:focus, QDoubleSpinBox:focus {
+                    border-color: #4CAF50;
+                }
+                QPushButton {
+                    background-color: #4CAF50;
+                    color: white;
+                    border: none;
+                    border-radius: 5px;
+                    padding: 10px 20px;
+                    font-size: 11px;
+                    font-weight: bold;
+                }
+                QPushButton:hover {
+                    background-color: #45a049;
+                }
+                QPushButton[class="cancel"] {
+                    background-color: #666666;
+                }
+                QPushButton[class="cancel"]:hover {
+                    background-color: #555555;
+                }
+            """)
+            
+            layout = QVBoxLayout()
+            form_layout = QFormLayout()
+            
+            # Tezgah bilgisi (sadece gösterim)
+            with self.db_manager.get_session() as session:
+                tezgah = session.query(Tezgah).filter_by(id=pil.tezgah_id).first()
+                tezgah_info = QLabel(f"{tezgah.numarasi} - {tezgah.aciklama}" if tezgah else "Bilinmiyor")
+                form_layout.addRow("🏭 Tezgah:", tezgah_info)
+            
+            # Eksen
+            eksen_combo = QComboBox()
+            eksen_combo.addItems(['X', 'Y', 'Z', 'A', 'B', 'C', 'TÜM EKSENLER'])
+            if pil.eksen:
+                index = eksen_combo.findText(pil.eksen)
+                if index >= 0:
+                    eksen_combo.setCurrentIndex(index)
+            form_layout.addRow("⚡ Eksen:", eksen_combo)
+            
+            # Pil modeli
+            model_edit = QLineEdit(pil.pil_modeli or "")
+            model_edit.setPlaceholderText("Örn: Panasonic BR-2/3A")
+            form_layout.addRow("🔋 Pil Modeli:", model_edit)
+            
+            # Değişim tarihi
+            tarih_edit = QDateEdit()
+            if pil.degisim_tarihi:
+                tarih_edit.setDate(QDate(pil.degisim_tarihi.year, pil.degisim_tarihi.month, pil.degisim_tarihi.day))
+            else:
+                tarih_edit.setDate(QDate.currentDate())
+            tarih_edit.setCalendarPopup(True)
+            tarih_edit.setDisplayFormat("dd.MM.yyyy")
+            form_layout.addRow("📅 Değişim Tarihi:", tarih_edit)
+            
+            # Değiştiren kişi
+            degistiren_edit = QLineEdit(pil.degistiren_kisi or "")
+            form_layout.addRow("👤 Değiştiren:", degistiren_edit)
+            
+            # Durum
+            durum_combo = QComboBox()
+            durum_combo.addItems(['Aktif', 'Zayıf', 'Değiştirilmeli', 'Değiştirildi'])
+            if pil.durum:
+                index = durum_combo.findText(pil.durum)
+                if index >= 0:
+                    durum_combo.setCurrentIndex(index)
+            form_layout.addRow("📊 Durum:", durum_combo)
+            
+            # Seri no
+            seri_edit = QLineEdit(pil.pil_seri_no or "")
+            form_layout.addRow("🔢 Seri No:", seri_edit)
+            
+            # Voltaj
+            voltaj_spin = QDoubleSpinBox()
+            voltaj_spin.setRange(0, 50)
+            voltaj_spin.setDecimals(2)
+            voltaj_spin.setSuffix(" V")
+            if pil.voltaj:
+                voltaj_spin.setValue(pil.voltaj)
+            form_layout.addRow("⚡ Voltaj:", voltaj_spin)
+            
+            # Açıklama
+            aciklama_edit = QTextEdit(pil.aciklama or "")
+            aciklama_edit.setMaximumHeight(60)
+            form_layout.addRow("📝 Açıklama:", aciklama_edit)
+            
+            layout.addLayout(form_layout)
+            
+            # Butonlar
+            button_layout = QHBoxLayout()
+            button_layout.addStretch()
+            
+            save_btn = QPushButton("💾 Kaydet")
+            save_btn.clicked.connect(lambda: self.save_pil_changes(
+                dialog, pil, eksen_combo, model_edit, tarih_edit, degistiren_edit, 
+                durum_combo, seri_edit, voltaj_spin, aciklama_edit))
+            button_layout.addWidget(save_btn)
+            
+            cancel_btn = QPushButton("❌ İptal")
+            cancel_btn.setProperty("class", "cancel")
+            cancel_btn.clicked.connect(dialog.reject)
+            button_layout.addWidget(cancel_btn)
+            
+            layout.addLayout(button_layout)
+            dialog.setLayout(layout)
+            
+            dialog.exec_()
+            
+        except Exception as e:
+            self.logger.error(f"Open edit pil dialog error: {e}")
+            CustomMessageBox.critical(self, "Hata", f"Düzenleme dialog'u açılırken hata oluştu:\n{e}")
+    
+    def save_pil_changes(self, dialog, pil, eksen_combo, model_edit, tarih_edit, degistiren_edit, durum_combo, seri_edit, voltaj_spin, aciklama_edit):
+        """Pil değişikliklerini kaydet"""
+        try:
+            # Validasyon
+            degistiren = degistiren_edit.text().strip()
+            if not degistiren:
+                CustomMessageBox.warning(self, "Uyarı", "Değiştiren kişi boş olamaz!")
+                return
+            
+            # Veritabanını güncelle
+            with self.db_manager.get_session() as session:
+                # Pil kaydını yeniden al (session içinde)
+                db_pil = session.query(Pil).filter_by(id=pil.id).first()
+                if not db_pil:
+                    CustomMessageBox.warning(self, "Uyarı", "Pil kaydı bulunamadı!")
+                    return
+                
+                # Değişiklikleri uygula
+                from datetime import datetime
+                tarih_qdate = tarih_edit.date()
+                db_pil.degisim_tarihi = datetime(tarih_qdate.year(), tarih_qdate.month(), tarih_qdate.day())
+                db_pil.eksen = eksen_combo.currentText()
+                db_pil.pil_modeli = model_edit.text().strip()
+                db_pil.degistiren_kisi = degistiren
+                db_pil.durum = durum_combo.currentText()
+                db_pil.pil_seri_no = seri_edit.text().strip()
+                db_pil.voltaj = voltaj_spin.value() if voltaj_spin.value() > 0 else None
+                db_pil.aciklama = aciklama_edit.toPlainText().strip()
+                
+                session.commit()
+                
+                # Tabloyu yenile
+                self.refresh_pil_table()
+                
+                CustomMessageBox.information(self, "Başarılı", "Pil kaydı güncellendi!")
+                dialog.accept()
+                
+        except Exception as e:
+            self.logger.error(f"Save pil changes error: {e}")
+            CustomMessageBox.critical(self, "Hata", f"Değişiklikler kaydedilirken hata oluştu:\n{e}")
+    
+    def change_battery(self, row, tezgah_no, eksen):
+        """Pil değiştirme işlemi"""
+        try:
+            from PyQt5.QtWidgets import QDialog, QVBoxLayout, QHBoxLayout, QLabel, QLineEdit, QTextEdit, QComboBox, QDateEdit, QPushButton, QFormLayout, QDoubleSpinBox
+            from PyQt5.QtCore import QDate
+            
+            dialog = QDialog(self)
+            dialog.setWindowTitle("🔄 Pil Değiştirme")
+            dialog.setFixedSize(500, 450)
+            dialog.setModal(True)
+            
+            # Stil
+            dialog.setStyleSheet("""
+                QDialog {
+                    background-color: #2b2b2b;
+                    color: #ffffff;
+                }
+                QLabel {
+                    color: #ffffff;
+                    font-size: 12px;
+                }
+                QLineEdit, QTextEdit, QComboBox, QDateEdit, QDoubleSpinBox {
+                    background-color: #3c3c3c;
+                    border: 2px solid #555555;
+                    border-radius: 5px;
+                    padding: 5px;
+                    color: #ffffff;
+                    font-size: 11px;
+                }
+                QLineEdit:focus, QTextEdit:focus, QComboBox:focus, QDateEdit:focus, QDoubleSpinBox:focus {
+                    border-color: #4CAF50;
+                }
+                QPushButton {
+                    background-color: #4CAF50;
+                    color: white;
+                    border: none;
+                    border-radius: 5px;
+                    padding: 10px 20px;
+                    font-size: 11px;
+                    font-weight: bold;
+                }
+                QPushButton:hover {
+                    background-color: #45a049;
+                }
+                QPushButton[class="cancel"] {
+                    background-color: #666666;
+                }
+                QPushButton[class="cancel"]:hover {
+                    background-color: #555555;
+                }
+            """)
+            
+            layout = QVBoxLayout()
+            
+            # Bilgi başlığı
+            info_label = QLabel(f"🔋 {tezgah_no} - {eksen} Ekseni Pil Değiştirme")
+            info_label.setStyleSheet("font-size: 14px; font-weight: bold; color: #4CAF50; margin-bottom: 10px;")
+            layout.addWidget(info_label)
+            
+            form_layout = QFormLayout()
+            
+            # Mevcut pil bilgilerini al ve göster
+            mevcut_pil_info = None
+            with self.db_manager.get_session() as session:
+                tezgah = session.query(Tezgah).filter_by(numarasi=tezgah_no).first()
+                if not tezgah:
+                    CustomMessageBox.warning(self, "Uyarı", "Tezgah bulunamadı!")
+                    return
+                
+                mevcut_pil = session.query(Pil).filter(
+                    Pil.tezgah_id == tezgah.id,
+                    Pil.eksen == eksen
+                ).first()
+                
+                # Mevcut pil bilgilerini dictionary'e çevir (session dışında kullanmak için)
+                if mevcut_pil:
+                    mevcut_pil_info = {
+                        'model': mevcut_pil.pil_modeli,
+                        'tarih': mevcut_pil.degisim_tarihi.strftime('%d.%m.%Y') if mevcut_pil.degisim_tarihi else 'Tarih yok'
+                    }
+                
+                # Mevcut pil bilgileri (sadece gösterim)
+                if mevcut_pil_info:
+                    mevcut_info = QLabel(f"Mevcut: {mevcut_pil_info['model'] or 'Bilinmiyor'} - {mevcut_pil_info['tarih']}")
+                    mevcut_info.setStyleSheet("color: #FFA500; font-style: italic;")
+                    form_layout.addRow("📋 Mevcut Pil:", mevcut_info)
+            
+            # Yeni pil bilgileri
+            form_layout.addRow(QLabel(""), QLabel(""))  # Boşluk
+            
+            # Yeni pil modeli
+            yeni_model_edit = QLineEdit()
+            yeni_model_edit.setPlaceholderText("Örn: Panasonic BR-2/3A")
+            if mevcut_pil_info and mevcut_pil_info['model']:
+                yeni_model_edit.setText(mevcut_pil_info['model'])  # Mevcut modeli varsayılan olarak koy
+            form_layout.addRow("🔋 Yeni Pil Modeli:", yeni_model_edit)
+            
+            # Değişim tarihi
+            degisim_tarih_edit = QDateEdit()
+            degisim_tarih_edit.setDate(QDate.currentDate())
+            degisim_tarih_edit.setCalendarPopup(True)
+            degisim_tarih_edit.setDisplayFormat("dd.MM.yyyy")
+            form_layout.addRow("📅 Değişim Tarihi:", degisim_tarih_edit)
+            
+            # Değiştiren kişi
+            degistiren_edit = QLineEdit()
+            degistiren_edit.setPlaceholderText("Teknisyen adı")
+            form_layout.addRow("👤 Değiştiren:", degistiren_edit)
+            
+            # Yeni pil durumu
+            durum_combo = QComboBox()
+            durum_combo.addItems(['Aktif', 'Test Edildi', 'Yeni'])
+            durum_combo.setCurrentText('Aktif')
+            form_layout.addRow("📊 Durum:", durum_combo)
+            
+            # Seri no
+            seri_edit = QLineEdit()
+            seri_edit.setPlaceholderText("Pil seri numarası")
+            form_layout.addRow("🔢 Seri No:", seri_edit)
+            
+            # Voltaj
+            voltaj_spin = QDoubleSpinBox()
+            voltaj_spin.setRange(0, 50)
+            voltaj_spin.setDecimals(2)
+            voltaj_spin.setSuffix(" V")
+            voltaj_spin.setValue(3.6)  # Varsayılan değer
+            form_layout.addRow("⚡ Voltaj:", voltaj_spin)
+            
+            # Açıklama/Notlar
+            aciklama_edit = QTextEdit()
+            aciklama_edit.setMaximumHeight(60)
+            aciklama_edit.setPlaceholderText("Değişim nedeni, özel notlar...")
+            form_layout.addRow("📝 Notlar:", aciklama_edit)
+            
+            layout.addLayout(form_layout)
+            
+            # Eski pil durumu seçimi
+            layout.addWidget(QLabel(""))  # Boşluk
+            eski_pil_label = QLabel("🗑️ Eski Pil Durumu:")
+            eski_pil_label.setStyleSheet("font-weight: bold;")
+            layout.addWidget(eski_pil_label)
+            
+            eski_durum_combo = QComboBox()
+            eski_durum_combo.addItems(['Değiştirildi', 'Arızalı', 'Zayıf', 'Ömrü Doldu'])
+            eski_durum_combo.setCurrentText('Değiştirildi')
+            layout.addWidget(eski_durum_combo)
+            
+            # Butonlar
+            button_layout = QHBoxLayout()
+            button_layout.addStretch()
+            
+            change_btn = QPushButton("🔄 Pil Değiştir")
+            change_btn.clicked.connect(lambda: self.perform_battery_change(
+                dialog, tezgah_no, eksen, yeni_model_edit, degisim_tarih_edit, 
+                degistiren_edit, durum_combo, seri_edit, voltaj_spin, 
+                aciklama_edit, eski_durum_combo))
+            button_layout.addWidget(change_btn)
+            
+            cancel_btn = QPushButton("❌ İptal")
+            cancel_btn.setProperty("class", "cancel")
+            cancel_btn.clicked.connect(dialog.reject)
+            button_layout.addWidget(cancel_btn)
+            
+            layout.addLayout(button_layout)
+            dialog.setLayout(layout)
+            
+            dialog.exec_()
+            
+        except Exception as e:
+            self.logger.error(f"Change battery dialog error: {e}")
+            CustomMessageBox.critical(self, "Hata", f"Pil değiştirme dialog'u açılırken hata oluştu:\n{e}")
+    
+    def perform_battery_change(self, dialog, tezgah_no, eksen, yeni_model_edit, degisim_tarih_edit, 
+                              degistiren_edit, durum_combo, seri_edit, voltaj_spin, 
+                              aciklama_edit, eski_durum_combo):
+        """Pil değiştirme işlemini gerçekleştir"""
+        try:
+            # Validasyon
+            yeni_model = yeni_model_edit.text().strip()
+            degistiren = degistiren_edit.text().strip()
+            
+            if not yeni_model:
+                CustomMessageBox.warning(self, "Uyarı", "Yeni pil modeli boş olamaz!")
+                return
+            
+            if not degistiren:
+                CustomMessageBox.warning(self, "Uyarı", "Değiştiren kişi boş olamaz!")
+                return
+            
+            # Onay al
+            reply = CustomMessageBox.question(self, "Onay", 
+                f"Pil değiştirme işlemini onaylıyor musunuz?\n\n"
+                f"Tezgah: {tezgah_no}\n"
+                f"Eksen: {eksen}\n"
+                f"Yeni Model: {yeni_model}\n"
+                f"Değiştiren: {degistiren}")
+            
+            if not reply:
+                return
+            
+            # Veritabanı işlemleri
+            with self.db_manager.get_session() as session:
+                # Tezgahı bul
+                tezgah = session.query(Tezgah).filter_by(numarasi=tezgah_no).first()
+                if not tezgah:
+                    CustomMessageBox.warning(self, "Uyarı", "Tezgah bulunamadı!")
+                    return
+                
+                # Mevcut pili bul ve güncelle
+                mevcut_pil = session.query(Pil).filter(
+                    Pil.tezgah_id == tezgah.id,
+                    Pil.eksen == eksen
+                ).first()
+                
+                if mevcut_pil:
+                    # Eski pilin durumunu güncelle
+                    mevcut_pil.durum = eski_durum_combo.currentText()
+                    
+                    # Yeni pil kaydı oluştur
+                    from datetime import datetime
+                    tarih_qdate = degisim_tarih_edit.date()
+                    degisim_tarihi = datetime(tarih_qdate.year(), tarih_qdate.month(), tarih_qdate.day())
+                    
+                    yeni_pil = Pil(
+                        tezgah_id=tezgah.id,
+                        eksen=eksen,
+                        pil_modeli=yeni_model,
+                        degisim_tarihi=degisim_tarihi,
+                        degistiren_kisi=degistiren,
+                        durum=durum_combo.currentText(),
+                        pil_seri_no=seri_edit.text().strip(),
+                        voltaj=voltaj_spin.value() if voltaj_spin.value() > 0 else None,
+                        aciklama=aciklama_edit.toPlainText().strip()
+                    )
+                    
+                    session.add(yeni_pil)
+                    
+                else:
+                    # Hiç pil kaydı yoksa yeni oluştur
+                    from datetime import datetime
+                    tarih_qdate = degisim_tarih_edit.date()
+                    degisim_tarihi = datetime(tarih_qdate.year(), tarih_qdate.month(), tarih_qdate.day())
+                    
+                    yeni_pil = Pil(
+                        tezgah_id=tezgah.id,
+                        eksen=eksen,
+                        pil_modeli=yeni_model,
+                        degisim_tarihi=degisim_tarihi,
+                        degistiren_kisi=degistiren,
+                        durum=durum_combo.currentText(),
+                        pil_seri_no=seri_edit.text().strip(),
+                        voltaj=voltaj_spin.value() if voltaj_spin.value() > 0 else None,
+                        aciklama=aciklama_edit.toPlainText().strip()
+                    )
+                    
+                    session.add(yeni_pil)
+                
+                # Bakım kaydı da oluştur (pil değişimi bakım sayılır)
+                bakim_kaydı = Bakim(
+                    tezgah_id=tezgah.id,
+                    tarih=degisim_tarihi,
+                    bakim_yapan=degistiren,
+                    aciklama=f"Pil değişimi - {eksen} ekseni - Yeni model: {yeni_model}",
+                    durum='Tamamlandı',
+                    bakim_turu='Pil Değişimi'
+                )
+                
+                session.add(bakim_kaydı)
+                session.commit()
+                
+                # Tabloları yenile
+                self.refresh_pil_table()
+                self.refresh_bakim_table()
+                self.refresh_dashboard()
+                
+                CustomMessageBox.information(self, "Başarılı", 
+                    f"✅ Pil değişimi tamamlandı!\n\n"
+                    f"🔋 Yeni pil: {yeni_model}\n"
+                    f"📅 Tarih: {degisim_tarihi.strftime('%d.%m.%Y')}\n"
+                    f"👤 Değiştiren: {degistiren}\n\n"
+                    f"📋 Bakım kaydı da oluşturuldu.")
+                
+                dialog.accept()
+                
+        except Exception as e:
+            self.logger.error(f"Perform battery change error: {e}")
+            CustomMessageBox.critical(self, "Hata", f"Pil değiştirme işlemi sırasında hata oluştu:\n{e}")
     
     def create_tezgah_tab(self):
         """Tezgahlar sekmesini oluştur"""
@@ -1649,6 +2694,10 @@ class TezgahTakipMainWindow(QMainWindow):
         # Çift tıklama olayını bağla
         self.bakim_table.cellDoubleClicked.connect(self.on_bakim_cell_double_clicked)
         
+        # Sağ tık menüsü için context menu
+        self.bakim_table.setContextMenuPolicy(Qt.CustomContextMenu)
+        self.bakim_table.customContextMenuRequested.connect(self.show_bakim_context_menu)
+        
         # Sütun genişliklerini ayarla
         self.bakim_table.setColumnWidth(0, 100)  # Tezgah
         self.bakim_table.setColumnWidth(1, 120)  # Tarih
@@ -1699,6 +2748,10 @@ class TezgahTakipMainWindow(QMainWindow):
         
         # Tabloyu sadece okunabilir yap
         self.pil_table.setEditTriggers(QTableWidget.NoEditTriggers)
+        
+        # Sağ tık menüsü için context menu
+        self.pil_table.setContextMenuPolicy(Qt.CustomContextMenu)
+        self.pil_table.customContextMenuRequested.connect(self.show_pil_context_menu)
         
         self.pil_table.horizontalHeader().setStretchLastSection(True)
         layout.addWidget(self.pil_table)
@@ -2436,6 +3489,26 @@ class TezgahTakipMainWindow(QMainWindow):
         backup_btn.clicked.connect(self.create_manual_backup)
         data_layout.addWidget(backup_btn)
         
+        # Yedekleme Ayarları
+        backup_settings_btn = QPushButton("⚙️ Yedekleme Ayarları")
+        backup_settings_btn.setStyleSheet("""
+            QPushButton {
+                background-color: #FF5722;
+                color: white;
+                border: none;
+                border-radius: 5px;
+                padding: 10px 20px;
+                font-size: 12px;
+                font-weight: bold;
+                margin: 5px 0;
+            }
+            QPushButton:hover {
+                background-color: #E64A19;
+            }
+        """)
+        backup_settings_btn.clicked.connect(self.show_backup_settings)
+        data_layout.addWidget(backup_settings_btn)
+        
         data_group.setLayout(data_layout)
         layout.addWidget(data_group)
         
@@ -2483,6 +3556,26 @@ class TezgahTakipMainWindow(QMainWindow):
         health_btn.clicked.connect(self.show_system_health)
         app_layout.addWidget(health_btn)
         
+        # Güncelleme Kontrolü
+        update_btn = QPushButton("🔄 Güncelleme Kontrolü")
+        update_btn.setStyleSheet("""
+            QPushButton {
+                background-color: #00BCD4;
+                color: white;
+                border: none;
+                border-radius: 5px;
+                padding: 10px 20px;
+                font-size: 12px;
+                font-weight: bold;
+                margin: 5px 0;
+            }
+            QPushButton:hover {
+                background-color: #0097A7;
+            }
+        """)
+        update_btn.clicked.connect(self.check_for_updates)
+        app_layout.addWidget(update_btn)
+        
         app_group.setLayout(app_layout)
         layout.addWidget(app_group)
         
@@ -2490,7 +3583,7 @@ class TezgahTakipMainWindow(QMainWindow):
         about_group = QGroupBox("ℹ️ Hakkında")
         about_layout = QVBoxLayout()
         
-        version_label = QLabel("TezgahTakip v2.1.1")
+        version_label = QLabel("TezgahTakip v2.1.2")
         version_label.setStyleSheet("font-size: 14px; font-weight: bold; color: #4CAF50; margin: 5px 0;")
         about_layout.addWidget(version_label)
         
@@ -2938,18 +4031,32 @@ class TezgahTakipMainWindow(QMainWindow):
                 CustomMessageBox.information(self, "ℹ️ Bilgi", info_message)
     
     def check_api_status(self):
-        """API durumunu kontrol et"""
-        if self.api_manager.has_api_key():
-            success, message = self.gemini_ai.test_connection()
-            if success:
-                self.api_status_label.setText("API: ✅ Bağlı")
-                self.api_status_label.setStyleSheet("color: #4CAF50;")
+        """API durumunu kontrol et ve kullanıcıya bilgi ver"""
+        try:
+            if self.api_manager.has_api_key():
+                success, message = self.gemini_ai.test_connection()
+                if success:
+                    self.api_status_label.setText("API: ✅ Bağlı")
+                    self.api_status_label.setStyleSheet("color: #4CAF50;")
+                    self.logger.info("API connection successful")
+                else:
+                    self.api_status_label.setText("API: ❌ Hata")
+                    self.api_status_label.setStyleSheet("color: #f44336;")
+                    self.logger.warning(f"API connection failed: {message}")
+                    
+                    # Eğer API anahtarı geçersizse kullanıcıya bildir
+                    if "geçersiz" in message.lower() or "süresi dolmuş" in message.lower():
+                        self.api_status_label.setToolTip(f"API Hatası: {message}\nYeni API anahtarı gerekli.")
+                    else:
+                        self.api_status_label.setToolTip(f"API Hatası: {message}")
             else:
-                self.api_status_label.setText(f"API: ❌ {message}")
-                self.api_status_label.setStyleSheet("color: #f44336;")
-        else:
-            self.api_status_label.setText("API: ⚠️ Anahtar yok")
-            self.api_status_label.setStyleSheet("color: #FF9800;")
+                self.api_status_label.setText("API: ⚠️ Anahtar yok")
+                self.api_status_label.setStyleSheet("color: #FF9800;")
+                self.api_status_label.setToolTip("AI özelliklerini kullanmak için API anahtarı gerekli")
+        except Exception as e:
+            self.logger.error(f"API status check error: {e}")
+            self.api_status_label.setText("API: ❓ Bilinmiyor")
+            self.api_status_label.setStyleSheet("color: #666666;")
     
     def refresh_dashboard(self):
         """Temiz Dashboard verilerini yenile"""
@@ -4294,9 +5401,15 @@ class TezgahTakipMainWindow(QMainWindow):
     def run_maintenance_analysis(self):
         """Bakım analizi çalıştır"""
         if not self.gemini_ai.has_api_key():
-            CustomMessageBox.information(self, "🔑 API Anahtarı Gerekli", 
-                              "AI analizi için API anahtarı gerekli.\nAyarlar > API Anahtarı menüsünden girin.")
-            return
+            result = CustomMessageBox.question(self, "🔑 API Anahtarı Gerekli", 
+                "AI bakım analizi için Google Gemini API anahtarı gereklidir.\n\n"
+                "API anahtarı ayarlarını şimdi açmak ister misiniz?")
+            
+            if result:
+                self.show_api_key_settings()
+                return
+            else:
+                return
         
         self.ai_result_text.setPlainText("🔄 Bakım analizi yapılıyor...")
         
@@ -4313,9 +5426,15 @@ class TezgahTakipMainWindow(QMainWindow):
     def run_battery_prediction(self):
         """Pil ömrü tahmini çalıştır"""
         if not self.gemini_ai.has_api_key():
-            CustomMessageBox.information(self, "🔑 API Anahtarı Gerekli", 
-                              "AI analizi için API anahtarı gerekli.\nAyarlar > API Anahtarı menüsünden girin.")
-            return
+            result = CustomMessageBox.question(self, "🔑 API Anahtarı Gerekli", 
+                "AI pil ömrü tahmini için Google Gemini API anahtarı gereklidir.\n\n"
+                "API anahtarı ayarlarını şimdi açmak ister misiniz?")
+            
+            if result:
+                self.show_api_key_settings()
+                return
+            else:
+                return
         
         self.ai_result_text.setPlainText("🔄 Pil ömrü analizi yapılıyor...")
         
@@ -4331,9 +5450,15 @@ class TezgahTakipMainWindow(QMainWindow):
     def run_maintenance_optimization(self):
         """Bakım optimizasyonu çalıştır"""
         if not self.gemini_ai.has_api_key():
-            CustomMessageBox.information(self, "🔑 API Anahtarı Gerekli", 
-                              "AI analizi için API anahtarı gerekli.\nAyarlar > API Anahtarı menüsünden girin.")
-            return
+            result = CustomMessageBox.question(self, "🔑 API Anahtarı Gerekli", 
+                "AI bakım optimizasyonu için Google Gemini API anahtarı gereklidir.\n\n"
+                "API anahtarı ayarlarını şimdi açmak ister misiniz?")
+            
+            if result:
+                self.show_api_key_settings()
+                return
+            else:
+                return
         
         self.ai_result_text.setPlainText("🔄 Bakım optimizasyonu yapılıyor...")
         
@@ -4348,10 +5473,40 @@ class TezgahTakipMainWindow(QMainWindow):
     
     def show_api_key_settings(self):
         """API anahtarı ayarlarını göster"""
-        success = show_api_key_dialog(self)
-        if success:
-            self.check_api_status()
-            CustomMessageBox.information(self, "✅ Başarılı", "API anahtarı güncellendi! AI özellikleri artık kullanılabilir.")
+        try:
+            # Mevcut API durumunu kontrol et
+            current_status = "yok"
+            if self.api_manager.has_api_key():
+                success, message = self.gemini_ai.test_connection()
+                current_status = "çalışıyor" if success else "geçersiz"
+            
+            # Dialog'u göster
+            success = show_api_key_dialog(self)
+            
+            if success:
+                # API durumunu yeniden kontrol et
+                self.check_api_status()
+                
+                # Başarı mesajı
+                CustomMessageBox.information(self, "✅ Başarılı", 
+                    "API anahtarı güncellendi!\n\n"
+                    "🤖 AI özellikleri artık kullanılabilir:\n"
+                    "• Akıllı bakım analizi\n"
+                    "• Pil ömrü tahmini\n"
+                    "• Performans önerileri\n"
+                    "• Soru-cevap sistemi")
+                
+                # Dashboard'u yenile (AI içgörüleri için)
+                if hasattr(self, 'refresh_insights'):
+                    self.refresh_insights()
+                    
+                self.logger.info("API key updated successfully")
+            else:
+                self.logger.info("API key dialog cancelled")
+                
+        except Exception as e:
+            self.logger.error(f"API key settings error: {e}")
+            CustomMessageBox.critical(self, "Hata", f"API ayarları açılırken hata oluştu:\n{e}")
     
     def check_for_updates(self):
         """Güncelleme kontrolü yap"""
@@ -4426,9 +5581,8 @@ class TezgahTakipMainWindow(QMainWindow):
                         CustomMessageBox.critical(self, "❌ Hata", 
                                                 f"Güncelleme kontrolü sırasında hata oluştu:\n{e}")
             
-            # Thread'de çalıştır
-            import threading
-            threading.Thread(target=check_updates_thread, daemon=True).start()
+            # Thread'de çalıştır - QTimer ile thread safety sağla
+            QTimer.singleShot(100, check_updates_thread)
             
         except ImportError:
             CustomMessageBox.information(self, "ℹ️ Bilgi", 
@@ -5872,7 +7026,6 @@ Teknoloji:
         try:
             from PyQt5.QtWidgets import QFileDialog, QProgressDialog
             import shutil
-            import sqlite3
             import json
             
             # Dosya seçim dialog'u
@@ -5907,17 +7060,45 @@ Teknoloji:
     def import_database_file(self, file_path):
         """Veritabanı dosyasını içe aktar"""
         try:
+            # SQLite3 modülünü kontrol et
+            try:
+                import sqlite3
+            except ImportError:
+                CustomMessageBox.critical(self, "❌ Hata", 
+                    "SQLite3 modülü bulunamadı!\n\n"
+                    "Bu sorun genellikle PyInstaller paketlemesinde görülür.\n"
+                    "Lütfen geliştirici ile iletişime geçin.")
+                return
+            
+            # Dosya varlığını kontrol et
+            if not os.path.exists(file_path):
+                CustomMessageBox.warning(self, "⚠️ Uyarı", "Seçilen dosya bulunamadı!")
+                return
+            
+            # Dosya boyutunu kontrol et
+            file_size = os.path.getsize(file_path)
+            if file_size == 0:
+                CustomMessageBox.warning(self, "⚠️ Uyarı", "Seçilen dosya boş!")
+                return
+            
             # Önce dosyanın geçerli bir SQLite veritabanı olduğunu kontrol et
-            test_conn = sqlite3.connect(file_path)
-            cursor = test_conn.cursor()
-            
-            # Tabloları kontrol et
-            cursor.execute("SELECT name FROM sqlite_master WHERE type='table';")
-            tables = [row[0] for row in cursor.fetchall()]
-            test_conn.close()
-            
-            if not tables:
-                CustomMessageBox.warning(self, "⚠️ Uyarı", "Seçilen dosya boş bir veritabanı!")
+            try:
+                test_conn = sqlite3.connect(file_path)
+                cursor = test_conn.cursor()
+                
+                # Tabloları kontrol et
+                cursor.execute("SELECT name FROM sqlite_master WHERE type='table';")
+                tables = [row[0] for row in cursor.fetchall()]
+                test_conn.close()
+                
+                if not tables:
+                    CustomMessageBox.warning(self, "⚠️ Uyarı", "Seçilen dosya boş bir veritabanı!")
+                    return
+                    
+            except sqlite3.Error as e:
+                CustomMessageBox.critical(self, "❌ Hata", 
+                    f"Seçilen dosya geçerli bir SQLite veritabanı değil!\n\n"
+                    f"Hata: {e}")
                 return
             
             # Kullanıcıya seçenekleri sun
@@ -5995,23 +7176,38 @@ Teknoloji:
                         # Veriyi dict'e çevir
                         tezgah_dict = dict(zip(columns, tezgah_data))
                         
-                        # Mevcut tezgahı kontrol et
-                        existing = self.db_manager.session.query(Tezgah).filter_by(
-                            tezgah_no=tezgah_dict.get('tezgah_no')
-                        ).first()
-                        
-                        if existing and merge_mode:
-                            # Güncelle
-                            for key, value in tezgah_dict.items():
-                                if hasattr(existing, key) and key != 'id':
-                                    setattr(existing, key, value)
-                        elif not existing:
-                            # Yeni ekle
-                            new_tezgah = Tezgah()
-                            for key, value in tezgah_dict.items():
-                                if hasattr(new_tezgah, key) and key != 'id':
-                                    setattr(new_tezgah, key, value)
-                            self.db_manager.session.add(new_tezgah)
+                        with self.db_manager.get_session() as session:
+                            # Mevcut tezgahı kontrol et (numarasi alanını kullan)
+                            tezgah_no = tezgah_dict.get('tezgah_no') or tezgah_dict.get('numarasi')
+                            if not tezgah_no:
+                                continue
+                                
+                            existing = session.query(Tezgah).filter_by(numarasi=tezgah_no).first()
+                            
+                            if existing and merge_mode:
+                                # Güncelle
+                                for key, value in tezgah_dict.items():
+                                    if key == 'tezgah_no':
+                                        key = 'numarasi'  # Eski alan adını yeni alan adına çevir
+                                    elif key == 'tezgah_adi':
+                                        key = 'aciklama'  # Eski alan adını yeni alan adına çevir
+                                    
+                                    if hasattr(existing, key) and key != 'id':
+                                        setattr(existing, key, value)
+                            elif not existing:
+                                # Yeni ekle
+                                new_tezgah = Tezgah()
+                                for key, value in tezgah_dict.items():
+                                    if key == 'tezgah_no':
+                                        key = 'numarasi'  # Eski alan adını yeni alan adına çevir
+                                    elif key == 'tezgah_adi':
+                                        key = 'aciklama'  # Eski alan adını yeni alan adına çevir
+                                    
+                                    if hasattr(new_tezgah, key) and key != 'id':
+                                        setattr(new_tezgah, key, value)
+                                session.add(new_tezgah)
+                            
+                            session.commit()
                         
                         imported_counts['tezgahlar'] += 1
                         
@@ -6035,13 +7231,46 @@ Teknoloji:
                     try:
                         bakim_dict = dict(zip(columns, bakim_data))
                         
-                        # Yeni bakım ekle (bakımlar genelde unique olur)
-                        new_bakim = Bakim()
-                        for key, value in bakim_dict.items():
-                            if hasattr(new_bakim, key) and key != 'id':
-                                setattr(new_bakim, key, value)
+                        with self.db_manager.get_session() as session:
+                            # Tezgah numarası ile tezgah ID'sini eşleştir
+                            tezgah_no = bakim_dict.get('tezgah_no') or bakim_dict.get('tezgah_numarasi')
+                            if not tezgah_no:
+                                continue
+                                
+                            tezgah = session.query(Tezgah).filter_by(numarasi=tezgah_no).first()
+                            if not tezgah:
+                                self.logger.warning(f"Bakım için tezgah bulunamadı: {tezgah_no}")
+                                continue
+                            
+                            # Yeni bakım ekle (bakımlar genelde unique olur)
+                            new_bakim = Bakim()
+                            new_bakim.tezgah_id = tezgah.id
+                            
+                            for key, value in bakim_dict.items():
+                                if hasattr(new_bakim, key) and key not in ['id', 'tezgah_no', 'tezgah_numarasi']:
+                                    # Tarih alanlarını datetime objesine çevir
+                                    if key == 'tarih' and isinstance(value, str):
+                                        try:
+                                            from datetime import datetime
+                                            value = datetime.strptime(value, '%Y-%m-%d %H:%M:%S.%f')
+                                        except ValueError:
+                                            try:
+                                                value = datetime.strptime(value, '%Y-%m-%d')
+                                            except ValueError:
+                                                continue  # Geçersiz tarih formatı, atla
+                                    
+                                    # Açıklama alanındaki geçersiz karakterleri temizle
+                                    if key == 'aciklama' and isinstance(value, str):
+                                        # Türkçe karakterler ve yaygın karakterler dışındakileri temizle
+                                        import re
+                                        value = re.sub(r'[^\w\sÇĞıİÖŞÜçğıöşü.,!?()-]', '', value)
+                                        value = value.strip()
+                                    
+                                    setattr(new_bakim, key, value)
+                            
+                            session.add(new_bakim)
+                            session.commit()
                         
-                        self.db_manager.session.add(new_bakim)
                         imported_counts['bakimlar'] += 1
                         
                     except Exception as e:
@@ -6064,24 +7293,39 @@ Teknoloji:
                     try:
                         pil_dict = dict(zip(columns, pil_data))
                         
-                        # Mevcut pili kontrol et
-                        existing = self.db_manager.session.query(Pil).filter_by(
-                            tezgah_no=pil_dict.get('tezgah_no'),
-                            eksen=pil_dict.get('eksen')
-                        ).first()
-                        
-                        if existing and merge_mode:
-                            # Güncelle
-                            for key, value in pil_dict.items():
-                                if hasattr(existing, key) and key != 'id':
-                                    setattr(existing, key, value)
-                        elif not existing:
-                            # Yeni ekle
-                            new_pil = Pil()
-                            for key, value in pil_dict.items():
-                                if hasattr(new_pil, key) and key != 'id':
-                                    setattr(new_pil, key, value)
-                            self.db_manager.session.add(new_pil)
+                        with self.db_manager.get_session() as session:
+                            # Tezgah numarası ile tezgah ID'sini eşleştir
+                            tezgah_no = pil_dict.get('tezgah_no') or pil_dict.get('tezgah_numarasi')
+                            if not tezgah_no:
+                                continue
+                                
+                            tezgah = session.query(Tezgah).filter_by(numarasi=tezgah_no).first()
+                            if not tezgah:
+                                self.logger.warning(f"Pil için tezgah bulunamadı: {tezgah_no}")
+                                continue
+                            
+                            # Mevcut pili kontrol et
+                            existing = session.query(Pil).filter_by(
+                                tezgah_id=tezgah.id,
+                                eksen=pil_dict.get('eksen')
+                            ).first()
+                            
+                            if existing and merge_mode:
+                                # Güncelle
+                                for key, value in pil_dict.items():
+                                    if hasattr(existing, key) and key not in ['id', 'tezgah_no', 'tezgah_numarasi']:
+                                        setattr(existing, key, value)
+                            elif not existing:
+                                # Yeni ekle
+                                new_pil = Pil()
+                                new_pil.tezgah_id = tezgah.id
+                                
+                                for key, value in pil_dict.items():
+                                    if hasattr(new_pil, key) and key not in ['id', 'tezgah_no', 'tezgah_numarasi']:
+                                        setattr(new_pil, key, value)
+                                session.add(new_pil)
+                            
+                            session.commit()
                         
                         imported_counts['piller'] += 1
                         
@@ -6091,8 +7335,6 @@ Teknoloji:
             
             progress.setValue(90)
             
-            # Değişiklikleri kaydet
-            self.db_manager.session.commit()
             source_conn.close()
             
             progress.setValue(100)
@@ -6137,23 +7379,34 @@ Teknoloji:
                 progress.setLabelText("Tezgahlar aktarılıyor...")
                 progress.setValue(20)
                 
-                for tezgah_data in data['tezgahlar']:
-                    try:
-                        existing = self.db_manager.session.query(Tezgah).filter_by(
-                            tezgah_no=tezgah_data.get('tezgah_no')
-                        ).first()
-                        
-                        if not existing:
-                            new_tezgah = Tezgah()
-                            for key, value in tezgah_data.items():
-                                if hasattr(new_tezgah, key):
-                                    setattr(new_tezgah, key, value)
-                            self.db_manager.session.add(new_tezgah)
-                            imported_counts['tezgahlar'] += 1
+                with self.db_manager.get_session() as session:
+                    for tezgah_data in data['tezgahlar']:
+                        try:
+                            # Tezgah numarasını al (eski ve yeni alan adlarını kontrol et)
+                            tezgah_no = tezgah_data.get('tezgah_no') or tezgah_data.get('numarasi')
+                            if not tezgah_no:
+                                continue
+                                
+                            existing = session.query(Tezgah).filter_by(numarasi=tezgah_no).first()
                             
-                    except Exception as e:
-                        self.logger.warning(f"JSON tezgah import error: {e}")
-                        continue
+                            if not existing:
+                                new_tezgah = Tezgah()
+                                for key, value in tezgah_data.items():
+                                    if key == 'tezgah_no':
+                                        key = 'numarasi'  # Eski alan adını yeni alan adına çevir
+                                    elif key == 'tezgah_adi':
+                                        key = 'aciklama'  # Eski alan adını yeni alan adına çevir
+                                    
+                                    if hasattr(new_tezgah, key):
+                                        setattr(new_tezgah, key, value)
+                                session.add(new_tezgah)
+                                imported_counts['tezgahlar'] += 1
+                                
+                        except Exception as e:
+                            self.logger.warning(f"JSON tezgah import error: {e}")
+                            continue
+                    
+                    session.commit()
             
             progress.setValue(60)
             
@@ -6161,18 +7414,51 @@ Teknoloji:
             if 'bakimlar' in data:
                 progress.setLabelText("Bakımlar aktarılıyor...")
                 
-                for bakim_data in data['bakimlar']:
-                    try:
-                        new_bakim = Bakim()
-                        for key, value in bakim_data.items():
-                            if hasattr(new_bakim, key):
-                                setattr(new_bakim, key, value)
-                        self.db_manager.session.add(new_bakim)
-                        imported_counts['bakimlar'] += 1
-                        
-                    except Exception as e:
-                        self.logger.warning(f"JSON bakım import error: {e}")
-                        continue
+                with self.db_manager.get_session() as session:
+                    for bakim_data in data['bakimlar']:
+                        try:
+                            new_bakim = Bakim()
+                            
+                            # Tezgah numarası ile tezgah ID'sini eşleştir
+                            tezgah_no = bakim_data.get('tezgah_no') or bakim_data.get('tezgah_numarasi')
+                            if tezgah_no:
+                                tezgah = session.query(Tezgah).filter_by(numarasi=tezgah_no).first()
+                                if tezgah:
+                                    new_bakim.tezgah_id = tezgah.id
+                                else:
+                                    # Tezgah bulunamazsa atla
+                                    self.logger.warning(f"Tezgah bulunamadı: {tezgah_no}")
+                                    continue
+                            
+                            for key, value in bakim_data.items():
+                                if hasattr(new_bakim, key) and key not in ['tezgah_no', 'tezgah_numarasi']:
+                                    # Tarih alanlarını datetime objesine çevir
+                                    if key == 'tarih' and isinstance(value, str):
+                                        try:
+                                            from datetime import datetime
+                                            value = datetime.strptime(value, '%Y-%m-%d %H:%M:%S.%f')
+                                        except ValueError:
+                                            try:
+                                                value = datetime.strptime(value, '%Y-%m-%d')
+                                            except ValueError:
+                                                continue  # Geçersiz tarih formatı, atla
+                                    
+                                    # Açıklama alanındaki geçersiz karakterleri temizle
+                                    if key == 'aciklama' and isinstance(value, str):
+                                        import re
+                                        value = re.sub(r'[^\w\sÇĞıİÖŞÜçğıöşü.,!?()-]', '', value)
+                                        value = value.strip()
+                                    
+                                    setattr(new_bakim, key, value)
+                            
+                            session.add(new_bakim)
+                            imported_counts['bakimlar'] += 1
+                            
+                        except Exception as e:
+                            self.logger.warning(f"JSON bakım import error: {e}")
+                            continue
+                    
+                    session.commit()
             
             progress.setValue(80)
             
@@ -6180,27 +7466,52 @@ Teknoloji:
             if 'piller' in data:
                 progress.setLabelText("Piller aktarılıyor...")
                 
-                for pil_data in data['piller']:
-                    try:
-                        existing = self.db_manager.session.query(Pil).filter_by(
-                            tezgah_no=pil_data.get('tezgah_no'),
-                            eksen=pil_data.get('eksen')
-                        ).first()
-                        
-                        if not existing:
-                            new_pil = Pil()
-                            for key, value in pil_data.items():
-                                if hasattr(new_pil, key):
-                                    setattr(new_pil, key, value)
-                            self.db_manager.session.add(new_pil)
-                            imported_counts['piller'] += 1
+                with self.db_manager.get_session() as session:
+                    for pil_data in data['piller']:
+                        try:
+                            # Tezgah numarası ile tezgah ID'sini eşleştir
+                            tezgah_no = pil_data.get('tezgah_no') or pil_data.get('tezgah_numarasi')
+                            if not tezgah_no:
+                                continue
+                                
+                            tezgah = session.query(Tezgah).filter_by(numarasi=tezgah_no).first()
+                            if not tezgah:
+                                self.logger.warning(f"Pil için tezgah bulunamadı: {tezgah_no}")
+                                continue
                             
-                    except Exception as e:
-                        self.logger.warning(f"JSON pil import error: {e}")
-                        continue
-            
-            # Değişiklikleri kaydet
-            self.db_manager.session.commit()
+                            # Mevcut pil kaydını kontrol et
+                            existing = session.query(Pil).filter_by(
+                                tezgah_id=tezgah.id,
+                                eksen=pil_data.get('eksen')
+                            ).first()
+                            
+                            if not existing:
+                                new_pil = Pil()
+                                new_pil.tezgah_id = tezgah.id
+                                
+                                for key, value in pil_data.items():
+                                    if hasattr(new_pil, key) and key not in ['tezgah_no', 'tezgah_numarasi']:
+                                        # Tarih alanlarını datetime objesine çevir
+                                        if key == 'degisim_tarihi' and isinstance(value, str):
+                                            try:
+                                                from datetime import datetime
+                                                value = datetime.strptime(value, '%Y-%m-%d %H:%M:%S.%f')
+                                            except ValueError:
+                                                try:
+                                                    value = datetime.strptime(value, '%Y-%m-%d')
+                                                except ValueError:
+                                                    continue
+                                        
+                                        setattr(new_pil, key, value)
+                                
+                                session.add(new_pil)
+                                imported_counts['piller'] += 1
+                                
+                        except Exception as e:
+                            self.logger.warning(f"JSON pil import error: {e}")
+                            continue
+                    
+                    session.commit()
             
             progress.setValue(100)
             progress.close()
@@ -6221,6 +7532,285 @@ Teknoloji:
             self.logger.error(f"JSON import error: {e}")
             CustomMessageBox.critical(self, "❌ Hata", f"JSON içe aktarma hatası:\n{e}")
     
+    def setup_scheduled_backup(self):
+        """Zamanlanmış yedeklemeyi kur"""
+        try:
+            # Config'den yedekleme ayarlarını al
+            backup_config = self.config_manager.get("backup", {})
+            
+            # Zamanlanmış yedekleme aktif mi?
+            scheduled_enabled = backup_config.get("scheduled_enabled", True)
+            backup_time = backup_config.get("backup_time", "23:00")
+            
+            if scheduled_enabled:
+                # Zamanlanmış yedeklemeyi başlat
+                success, message = self.backup_manager.start_scheduled_backup(backup_time)
+                
+                if success:
+                    self.logger.info(f"Scheduled backup started for {backup_time}")
+                    
+                    # Backup manager'ın signal'larını bağla
+                    if self.backup_manager.scheduled_manager:
+                        self.backup_manager.scheduled_manager.backup_started.connect(
+                            self.on_scheduled_backup_started
+                        )
+                        self.backup_manager.scheduled_manager.backup_completed.connect(
+                            self.on_scheduled_backup_completed
+                        )
+                else:
+                    self.logger.warning(f"Failed to start scheduled backup: {message}")
+            else:
+                self.logger.info("Scheduled backup is disabled")
+                
+        except Exception as e:
+            self.logger.error(f"Setup scheduled backup error: {e}")
+    
+    def on_scheduled_backup_started(self):
+        """Zamanlanmış yedekleme başladığında"""
+        try:
+            self.logger.info("Scheduled backup started")
+            
+            # Status bar'da bildirim göster
+            if hasattr(self, 'statusBar'):
+                self.statusBar().showMessage("🔄 Otomatik yedekleme başlatıldı...", 5000)
+                
+        except Exception as e:
+            self.logger.error(f"Scheduled backup started handler error: {e}")
+    
+    def on_scheduled_backup_completed(self, success: bool, message: str):
+        """Zamanlanmış yedekleme tamamlandığında"""
+        try:
+            if success:
+                self.logger.info("Scheduled backup completed successfully")
+                
+                # Status bar'da başarı mesajı
+                if hasattr(self, 'statusBar'):
+                    self.statusBar().showMessage("✅ Otomatik yedekleme tamamlandı", 10000)
+                
+                # Notification göster (opsiyonel)
+                try:
+                    from notification_manager import NotificationManager
+                    notification_manager = NotificationManager()
+                    notification_manager.show_notification(
+                        "Yedekleme Tamamlandı",
+                        "Günlük otomatik yedekleme başarıyla tamamlandı.",
+                        "success"
+                    )
+                except ImportError:
+                    pass  # Notification manager yoksa sessizce geç
+                    
+            else:
+                self.logger.error(f"Scheduled backup failed: {message}")
+                
+                # Status bar'da hata mesajı
+                if hasattr(self, 'statusBar'):
+                    self.statusBar().showMessage(f"❌ Otomatik yedekleme hatası: {message}", 15000)
+                
+        except Exception as e:
+            self.logger.error(f"Scheduled backup completed handler error: {e}")
+    
+    def show_backup_settings(self):
+        """Yedekleme ayarları dialog'unu göster"""
+        from PyQt5.QtWidgets import (QDialog, QVBoxLayout, QHBoxLayout, QLabel, 
+                                    QCheckBox, QTimeEdit, QPushButton, QGroupBox,
+                                    QFormLayout, QSpinBox, QTextEdit)
+        from PyQt5.QtCore import QTime
+        
+        dialog = QDialog(self)
+        dialog.setWindowTitle("⚙️ Yedekleme Ayarları")
+        dialog.setFixedSize(500, 400)
+        dialog.setModal(True)
+        
+        # Stil
+        dialog.setStyleSheet("""
+            QDialog {
+                background-color: #2b2b2b;
+                color: #ffffff;
+            }
+            QGroupBox {
+                font-weight: bold;
+                border: 2px solid #555555;
+                border-radius: 5px;
+                margin-top: 10px;
+                padding-top: 10px;
+            }
+            QGroupBox::title {
+                subcontrol-origin: margin;
+                left: 10px;
+                padding: 0 5px 0 5px;
+            }
+        """)
+        
+        layout = QVBoxLayout()
+        
+        # Zamanlanmış yedekleme grubu
+        scheduled_group = QGroupBox("🕐 Zamanlanmış Yedekleme")
+        scheduled_layout = QFormLayout()
+        
+        # Aktif/pasif checkbox
+        self.scheduled_checkbox = QCheckBox("Otomatik yedeklemeyi etkinleştir")
+        scheduled_layout.addRow(self.scheduled_checkbox)
+        
+        # Yedekleme saati
+        self.backup_time_edit = QTimeEdit()
+        self.backup_time_edit.setDisplayFormat("HH:mm")
+        scheduled_layout.addRow("Yedekleme Saati:", self.backup_time_edit)
+        
+        scheduled_group.setLayout(scheduled_layout)
+        layout.addWidget(scheduled_group)
+        
+        # Yedek ayarları grubu
+        settings_group = QGroupBox("📁 Yedek Ayarları")
+        settings_layout = QFormLayout()
+        
+        # Maksimum yedek sayısı
+        self.max_backups_spin = QSpinBox()
+        self.max_backups_spin.setRange(1, 30)
+        self.max_backups_spin.setValue(7)
+        settings_layout.addRow("Maksimum Yedek Sayısı:", self.max_backups_spin)
+        
+        settings_group.setLayout(settings_layout)
+        layout.addWidget(settings_group)
+        
+        # Durum bilgisi
+        status_group = QGroupBox("📊 Durum Bilgisi")
+        status_layout = QVBoxLayout()
+        
+        self.status_text = QTextEdit()
+        self.status_text.setMaximumHeight(100)
+        self.status_text.setReadOnly(True)
+        status_layout.addWidget(self.status_text)
+        
+        status_group.setLayout(status_layout)
+        layout.addWidget(status_group)
+        
+        # Butonlar
+        button_layout = QHBoxLayout()
+        
+        # Test butonu
+        test_btn = QPushButton("🧪 Test Yedekleme")
+        test_btn.clicked.connect(lambda: self.test_backup_now())
+        button_layout.addWidget(test_btn)
+        
+        button_layout.addStretch()
+        
+        # Kaydet butonu
+        save_btn = QPushButton("💾 Kaydet")
+        save_btn.clicked.connect(lambda: self.save_backup_settings(dialog))
+        button_layout.addWidget(save_btn)
+        
+        # İptal butonu
+        cancel_btn = QPushButton("❌ İptal")
+        cancel_btn.clicked.connect(dialog.reject)
+        button_layout.addWidget(cancel_btn)
+        
+        layout.addLayout(button_layout)
+        dialog.setLayout(layout)
+        
+        # Mevcut ayarları yükle
+        self.load_backup_settings_to_dialog()
+        
+        # Dialog'u göster
+        dialog.exec_()
+    
+    def load_backup_settings_to_dialog(self):
+        """Mevcut yedekleme ayarlarını dialog'a yükle"""
+        try:
+            # Backup manager'dan ayarları al
+            settings = self.backup_manager.get_backup_settings()
+            status = self.backup_manager.get_backup_status()
+            
+            # Checkbox'ı ayarla
+            self.scheduled_checkbox.setChecked(settings.get('scheduled_enabled', True))
+            
+            # Saati ayarla
+            backup_time = settings.get('backup_time', '23:00')
+            time_parts = backup_time.split(':')
+            qtime = QTime(int(time_parts[0]), int(time_parts[1]))
+            self.backup_time_edit.setTime(qtime)
+            
+            # Maksimum yedek sayısı
+            self.max_backups_spin.setValue(settings.get('max_backups', 7))
+            
+            # Durum bilgisini göster
+            status_text = f"""📊 Yedekleme Durumu:
+
+✅ Toplam Yedek: {status.get('total_backups', 0)} dosya
+💾 Toplam Boyut: {status.get('backup_size_mb', 0)} MB
+📅 Son Yedek: {status.get('last_backup_date', 'Henüz yok')}
+📁 Yedek Klasörü: {settings.get('backup_dir', 'backups')}
+
+🕐 Zamanlanmış Yedekleme: {'Aktif' if status.get('scheduled_enabled', False) else 'Pasif'}
+⏰ Yedekleme Saati: {status.get('backup_time', '23:00')}"""
+            
+            self.status_text.setPlainText(status_text)
+            
+        except Exception as e:
+            self.logger.error(f"Load backup settings error: {e}")
+    
+    def save_backup_settings(self, dialog):
+        """Yedekleme ayarlarını kaydet"""
+        try:
+            # Dialog'dan ayarları al
+            scheduled_enabled = self.scheduled_checkbox.isChecked()
+            backup_time = self.backup_time_edit.time().toString("HH:mm")
+            max_backups = self.max_backups_spin.value()
+            
+            # Backup manager'ı güncelle
+            settings = {
+                'scheduled_enabled': scheduled_enabled,
+                'backup_time': backup_time
+            }
+            
+            success, message = self.backup_manager.update_backup_settings(settings)
+            
+            if success:
+                # Config'i de güncelle
+                self.config_manager.set("backup.scheduled_enabled", scheduled_enabled)
+                self.config_manager.set("backup.backup_time", backup_time)
+                self.config_manager.save_config()
+                
+                CustomMessageBox.information(self, "✅ Başarılı", 
+                    f"Yedekleme ayarları kaydedildi!\n\n"
+                    f"🕐 Zamanlanmış Yedekleme: {'Aktif' if scheduled_enabled else 'Pasif'}\n"
+                    f"⏰ Yedekleme Saati: {backup_time}")
+                
+                dialog.accept()
+            else:
+                CustomMessageBox.critical(self, "❌ Hata", f"Ayarlar kaydedilemedi:\n{message}")
+                
+        except Exception as e:
+            self.logger.error(f"Save backup settings error: {e}")
+            CustomMessageBox.critical(self, "❌ Hata", f"Ayarlar kaydedilirken hata oluştu:\n{e}")
+    
+    def test_backup_now(self):
+        """Şimdi test yedeklemesi yap"""
+        try:
+            # Progress dialog göster
+            from PyQt5.QtWidgets import QProgressDialog
+            from PyQt5.QtCore import Qt
+            
+            progress = QProgressDialog("Test yedeklemesi yapılıyor...", "İptal", 0, 0, self)
+            progress.setWindowModality(Qt.WindowModal)
+            progress.show()
+            
+            # Yedekleme yap
+            success, message = self.backup_manager.create_backup(compressed=True, include_metadata=True)
+            
+            progress.close()
+            
+            if success:
+                CustomMessageBox.information(self, "✅ Test Başarılı", 
+                    f"Test yedeklemesi başarıyla tamamlandı!\n\n"
+                    f"📁 Dosya: {message}")
+            else:
+                CustomMessageBox.critical(self, "❌ Test Hatası", 
+                    f"Test yedeklemesi başarısız:\n{message}")
+                
+        except Exception as e:
+            self.logger.error(f"Test backup error: {e}")
+            CustomMessageBox.critical(self, "❌ Hata", f"Test yedeklemesi sırasında hata:\n{e}")
+
     def closeEvent(self, event):
         """Uygulama kapatılırken - Resource cleanup"""
         try:
@@ -6239,6 +7829,10 @@ Teknoloji:
 
 def main():
     """Ana fonksiyon"""
+    # DPI scaling'i uygulama oluşturulmadan önce ayarla
+    QApplication.setAttribute(Qt.AA_EnableHighDpiScaling, True)
+    QApplication.setAttribute(Qt.AA_UseHighDpiPixmaps, True)
+    
     app = QApplication(sys.argv)
     
     # Uygulama bilgileri

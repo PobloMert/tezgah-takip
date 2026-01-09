@@ -20,8 +20,8 @@
         "auto_download": false
     },
     "ai": {
-        "gemini_api_key": "Z0FBQUFBQnBZVEFiYlNwdFEzVGN2QWFUaGVocTJoTTZfTWVnYzdxcW5RYUsxb1dNekVxaWZPOXdxMzMtMzZacTdMVHoxSkdQQjZLWFF5d0pBTDVMQ3FYbjZRVmVVaklyd3RoeXBBRkZDbXNKSi1pd2Q3bWQ2dzlBX1VLNHpmVlRzMFp2dWE2Wm5jcUg=",
-        "api_key_encrypted": true,
-        "last_updated": "2026-01-09T19:43:07.776058"
+        "gemini_api_key": "",
+        "api_key_encrypted": false,
+        "last_updated": ""
     }
 }

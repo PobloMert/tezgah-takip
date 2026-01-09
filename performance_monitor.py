@@ -6,7 +6,6 @@ Uygulama performansını izleme ve optimizasyon sistemi
 """
 
 import time
-import psutil
 import logging
 import threading
 from datetime import datetime, timedelta
@@ -15,6 +14,14 @@ from functools import wraps
 from dataclasses import dataclass
 from collections import deque
 import json
+
+# Psutil'i güvenli şekilde import et
+try:
+    import psutil
+    PSUTIL_AVAILABLE = True
+except ImportError:
+    PSUTIL_AVAILABLE = False
+    psutil = None
 
 @dataclass
 class PerformanceMetric:
@@ -95,6 +102,9 @@ class PerformanceMonitor:
     def _collect_system_metrics(self):
         """Sistem metriklerini topla"""
         try:
+            if not PSUTIL_AVAILABLE:
+                return
+                
             current_time = datetime.now()
             
             # Memory usage

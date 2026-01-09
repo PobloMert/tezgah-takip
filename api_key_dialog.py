@@ -128,6 +128,10 @@ class APIKeyValidator(QThread):
     def run(self):
         """API anahtarını Google Gemini API'ye test ederek doğrula"""
         try:
+            # Rate limiting - çok fazla test isteği önlemek için
+            import time
+            time.sleep(2)  # 2 saniye bekle
+            
             # Thread içinde yeni API manager oluştur (thread safety)
             from api_key_manager import APIKeyManager
             temp_manager = APIKeyManager()
@@ -139,7 +143,7 @@ class APIKeyValidator(QThread):
                 return
             
             # Gemini API test endpoint'i
-            url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent"
+            url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent"
             
             headers = {
                 "Content-Type": "application/json",
@@ -161,12 +165,12 @@ class APIKeyValidator(QThread):
             
             self.logger.info("Testing API key validation")
             
-            # API çağrısı
+            # API çağrısı - daha uzun timeout
             response = requests.post(
                 f"{url}?key={self.api_key}",
                 headers=headers,
                 json=data,
-                timeout=15  # Daha kısa timeout
+                timeout=30  # Daha uzun timeout
             )
             
             if response.status_code == 200:
@@ -181,7 +185,7 @@ class APIKeyValidator(QThread):
             elif response.status_code == 403:
                 self.validation_complete.emit(False, "API anahtarı için yetki yok veya kota aşıldı")
             elif response.status_code == 429:
-                self.validation_complete.emit(False, "Çok fazla istek - Lütfen bekleyin")
+                self.validation_complete.emit(False, "Çok fazla istek gönderildi. 1-2 dakika bekleyip tekrar deneyin.\n\nGemini API'nin ücretsiz versiyonunda dakika başına istek limiti vardır.")
             else:
                 self.validation_complete.emit(False, f"HTTP {response.status_code}: API bağlantı hatası")
                 
@@ -347,14 +351,20 @@ Gemini AI özelliklerini kullanmak için geçerli bir API anahtarı gereklidir.
         help_group = QGroupBox("📋 API Anahtarı Nasıl Alınır?")
         help_layout = QVBoxLayout()
         
-        help_text = """1. https://makersuite.google.com/app/apikey adresine gidin
-2. Google hesabınızla giriş yapın
+        help_text = """🔗 Adım adım API anahtarı alma:
+
+1. https://makersuite.google.com/app/apikey adresine gidin
+2. Google hesabınızla giriş yapın  
 3. "Create API Key" butonuna tıklayın
-4. Oluşturulan anahtarı kopyalayın ve yukarıya yapıştırın"""
+4. Oluşturulan anahtarı kopyalayın (AIzaSy... ile başlar)
+5. Yukarıdaki alana yapıştırın ve "Doğrula" butonuna tıklayın
+
+⚠️ Önemli: API anahtarı ücretsizdir ancak kullanım limiti vardır.
+💡 İpucu: Anahtarınızı kimseyle paylaşmayın ve güvenli saklayın."""
         
         help_label = QLabel(help_text)
         help_label.setWordWrap(True)
-        help_label.setStyleSheet("color: #cccccc; font-size: 10px;")
+        help_label.setStyleSheet("color: #cccccc; font-size: 10px; line-height: 1.4;")
         help_layout.addWidget(help_label)
         
         # Link butonu
@@ -391,18 +401,36 @@ Gemini AI özelliklerini kullanmak için geçerli bir API anahtarı gereklidir.
         self.setLayout(layout)
     
     def load_existing_key(self):
-        """Mevcut API anahtarını yükle"""
+        """Mevcut API anahtarını yükle ve durumunu kontrol et"""
         try:
             if self.api_manager.has_api_key():
                 # Güvenlik için sadece ilk ve son 4 karakteri göster
                 existing_key = self.api_manager.get_api_key()
                 if len(existing_key) > 8:
                     masked_key = existing_key[:4] + "..." + existing_key[-4:]
-                    self.api_key_input.setPlaceholderText(f"Mevcut: {masked_key}")
-                    self.status_text.setPlainText("✅ Kayıtlı API anahtarı bulundu. Yeni anahtar girmek için üzerine yazın.")
-                    self.save_button.setText("💾 Güncelle")
+                    
+                    # API anahtarının çalışıp çalışmadığını kontrol et
+                    from gemini_ai import GeminiAI
+                    gemini = GeminiAI()
+                    is_working, test_message = gemini.test_connection()
+                    
+                    if is_working:
+                        self.api_key_input.setPlaceholderText(f"Mevcut: {masked_key} (Çalışıyor)")
+                        self.status_text.setPlainText("✅ Kayıtlı API anahtarı bulundu ve çalışıyor. Yeni anahtar girmek için üzerine yazın.")
+                        self.save_button.setText("💾 Güncelle")
+                    else:
+                        self.api_key_input.setPlaceholderText(f"Mevcut: {masked_key} (Geçersiz)")
+                        self.status_text.setPlainText(f"❌ Kayıtlı API anahtarı geçersiz: {test_message}\n\nLütfen yeni bir API anahtarı girin.")
+                        self.save_button.setText("💾 Güncelle")
+                        
+                        # Geçersiz anahtarı otomatik temizle seçeneği sun
+                        if "geçersiz" in test_message.lower() or "süresi dolmuş" in test_message.lower():
+                            self.status_text.append("\n💡 Geçersiz anahtarı otomatik olarak temizlemek için 'Temizle' butonunu kullanın.")
+            else:
+                self.status_text.setPlainText("🔑 API anahtarı bulunamadı. Lütfen yeni bir API anahtarı girin.")
         except Exception as e:
-            print(f"Mevcut anahtar yüklenirken hata: {e}")
+            self.logger.error(f"Mevcut anahtar yüklenirken hata: {e}")
+            self.status_text.setPlainText("⚠️ API anahtarı durumu kontrol edilemedi. Yeni anahtar girmeyi deneyin.")
     
     def on_api_key_changed(self):
         """API anahtarı değiştiğinde çağrılır"""

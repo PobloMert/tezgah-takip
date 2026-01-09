@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 """
 TezgahTakip - Ana Uygulama
-AI Güçlü Fabrika Bakım Yönetim Sistemi v2.1.1
+AI Güçlü Fabrika Bakım Yönetim Sistemi v2.1.2
 """
 
 import sys
@@ -61,7 +61,7 @@ class TezgahTakipApp:
         
     # Uygulama bilgileri
         self.app_name = "TezgahTakip"
-        self.app_version = "2.1.1"
+        self.app_version = "2.1.2"
         self.app_description = "AI Güçlü Fabrika Bakım Yönetim Sistemi"
     
     def setup_logging(self):

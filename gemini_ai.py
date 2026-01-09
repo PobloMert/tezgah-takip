@@ -17,7 +17,7 @@ import logging
 class RateLimiter:
     """Rate limiting için basit sınıf"""
     
-    def __init__(self, max_requests=10, time_window=60):
+    def __init__(self, max_requests=5, time_window=60):  # Daha konservatif limit
         self.max_requests = max_requests
         self.time_window = time_window
         self.requests = []
@@ -50,12 +50,12 @@ class GeminiAI:
         self.db_manager = db_manager
         self.api_manager = APIKeyManager()
         self.base_url = "https://generativelanguage.googleapis.com/v1beta"
-        self.model = "gemini-pro"
+        self.model = "gemini-2.0-flash"  # Güncel ve stabil model
         self.timeout = 30
         self.logger = logging.getLogger(__name__)
         
         # Rate limiting
-        self.rate_limiter = RateLimiter(max_requests=10, time_window=60)
+        self.rate_limiter = RateLimiter(max_requests=5, time_window=60)  # Daha konservatif
         
         # Thread safety
         self.request_lock = threading.Lock()

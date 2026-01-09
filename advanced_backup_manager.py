@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-TezgahTakip - Gelişmiş Otomatik Yedekleme Sistemi
+TezgahTakip - Gelişmiş Otomatik Yedekleme Sistemi v2.0
 Zamanlanmış yedekleme, otomatik temizleme ve kurtarma işlemleri
 """
 
@@ -16,7 +16,6 @@ from pathlib import Path
 import zipfile
 import hashlib
 import threading
-import time
 from PyQt5.QtCore import QTimer, QObject, pyqtSignal
 
 class ScheduledBackupManager(QObject):
@@ -106,7 +105,7 @@ class ScheduledBackupManager(QObject):
         except Exception as e:
             self.logger.error(f"Failed to start scheduled backup: {e}")
 
-class BackupManager:
+class AdvancedBackupManager:
     """Gelişmiş otomatik yedekleme yönetim sınıfı"""
     
     # Constants
@@ -145,29 +144,8 @@ class BackupManager:
         else:
             return f"{base_name}{self.BACKUP_EXTENSION}"
     
-    def _calculate_file_hash(self, filepath: Path) -> str:
-        """Dosya hash'i hesapla (bütünlük kontrolü için)"""
-        try:
-            hash_sha256 = hashlib.sha256()
-            with open(filepath, "rb") as f:
-                for chunk in iter(lambda: f.read(4096), b""):
-                    hash_sha256.update(chunk)
-            return hash_sha256.hexdigest()
-        except Exception as e:
-            self.logger.error(f"Hash calculation error: {e}")
-            return ""
-    
     def create_backup(self, compressed: bool = True, include_metadata: bool = True) -> Tuple[bool, str]:
-        """
-        Veritabanı yedeği oluştur
-        
-        Args:
-            compressed: Sıkıştırılmış yedek oluştur
-            include_metadata: Metadata dosyası dahil et
-            
-        Returns:
-            (success, message/filepath)
-        """
+        """Veritabanı yedeği oluştur"""
         try:
             if not os.path.exists(self.db_path):
                 return False, f"Veritabanı dosyası bulunamadı: {self.db_path}"
@@ -237,13 +215,6 @@ class BackupManager:
                     
                     # Geçici dosyayı sil
                     metadata_path.unlink()
-                
-                # Log dosyalarını ekle (varsa)
-                log_dir = Path("logs")
-                if log_dir.exists():
-                    for log_file in log_dir.glob("*.log"):
-                        if log_file.stat().st_size < 10 * 1024 * 1024:  # 10MB'dan küçükse
-                            zipf.write(log_file, f"logs/{log_file.name}")
             
             return True, "Sıkıştırılmış yedek oluşturuldu"
             
@@ -257,29 +228,23 @@ class BackupManager:
             conn = sqlite3.connect(self.db_path)
             cursor = conn.cursor()
             
-            # Güvenli tablo listesi - sadece bilinen tablolar
+            # Güvenli tablo listesi
             ALLOWED_TABLES = ['tezgah', 'bakimlar', 'pil_degisimler', 'kullanici', 'ayar']
             
-            # Tablo sayıları - SQL injection korumalı
+            # Tablo sayıları
             tables_info = {}
             
             for table in ALLOWED_TABLES:
                 try:
-                    # Güvenli parameterized query kullan
-                    # SQLite'da tablo adları parameterize edilemez, bu yüzden whitelist kullanıyoruz
-                    if table in ALLOWED_TABLES:  # Double check
-                        cursor.execute(f"SELECT COUNT(*) FROM `{table}`")  # Backtick ile escape
-                        count = cursor.fetchone()[0]
-                        tables_info[table] = count
+                    cursor.execute(f"SELECT COUNT(*) FROM `{table}`")
+                    count = cursor.fetchone()[0]
+                    tables_info[table] = count
                 except sqlite3.Error as e:
                     self.logger.warning(f"Table {table} count failed: {e}")
                     tables_info[table] = 0
             
             # Veritabanı boyutu
             db_size = os.path.getsize(self.db_path)
-            
-            # Hash hesapla
-            db_hash = self._calculate_file_hash(Path(self.db_path))
             
             conn.close()
             
@@ -293,14 +258,13 @@ class BackupManager:
                 "database_info": {
                     "size_bytes": db_size,
                     "size_mb": round(db_size / (1024 * 1024), 2),
-                    "hash_sha256": db_hash,
                     "tables": tables_info,
                     "total_records": sum(tables_info.values())
                 },
                 "system_info": {
                     "python_version": f"{os.sys.version_info.major}.{os.sys.version_info.minor}",
                     "platform": os.name,
-                    "backup_tool": "TezgahTakip BackupManager v2.0"
+                    "backup_tool": "TezgahTakip AdvancedBackupManager v2.0"
                 }
             }
             
@@ -315,329 +279,6 @@ class BackupManager:
                     "error": str(e)
                 }
             }
-    
-    def restore_backup(self, backup_path: str, verify_integrity: bool = True) -> Tuple[bool, str]:
-        """
-        Yedekten geri yükle
-        
-        Args:
-            backup_path: Yedek dosya yolu
-            verify_integrity: Bütünlük kontrolü yap
-            
-        Returns:
-            (success, message)
-        """
-        try:
-            backup_file = Path(backup_path)
-            
-            if not backup_file.exists():
-                return False, f"Yedek dosyası bulunamadı: {backup_path}"
-            
-            # Mevcut veritabanının yedeğini al
-            current_backup = f"{self.db_path}.restore_backup_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
-            shutil.copy2(self.db_path, current_backup)
-            
-            try:
-                if backup_file.suffix == self.COMPRESSED_EXTENSION:
-                    # Sıkıştırılmış yedekten geri yükle
-                    success, message = self._restore_from_compressed(backup_file, verify_integrity)
-                else:
-                    # Basit yedekten geri yükle
-                    success, message = self._restore_from_simple(backup_file, verify_integrity)
-                
-                if success:
-                    # Eski yedek dosyasını sil
-                    os.remove(current_backup)
-                    self.logger.info(f"Database restored from: {backup_path}")
-                    return True, "Veritabanı başarıyla geri yüklendi"
-                else:
-                    # Geri yükleme başarısızsa eski veritabanını geri getir
-                    shutil.move(current_backup, self.db_path)
-                    return False, f"Geri yükleme başarısız: {message}"
-                    
-            except Exception as e:
-                # Hata durumunda eski veritabanını geri getir
-                shutil.move(current_backup, self.db_path)
-                raise e
-                
-        except Exception as e:
-            error_msg = f"Geri yükleme hatası: {e}"
-            self.logger.error(error_msg)
-            return False, error_msg
-    
-    def _restore_from_simple(self, backup_path: Path, verify_integrity: bool) -> Tuple[bool, str]:
-        """Basit yedekten geri yükle"""
-        try:
-            if verify_integrity:
-                # Veritabanı bütünlüğünü kontrol et
-                if not self._verify_database_integrity(backup_path):
-                    return False, "Yedek dosyası bozuk"
-            
-            # Dosyayı kopyala
-            shutil.copy2(backup_path, self.db_path)
-            
-            return True, "Basit yedekten geri yüklendi"
-            
-        except Exception as e:
-            return False, f"Basit geri yükleme hatası: {e}"
-    
-    def _restore_from_compressed(self, backup_path: Path, verify_integrity: bool) -> Tuple[bool, str]:
-        """Sıkıştırılmış yedekten geri yükle"""
-        try:
-            with zipfile.ZipFile(backup_path, 'r') as zipf:
-                # Zip içeriğini kontrol et
-                file_list = zipf.namelist()
-                db_file = None
-                
-                for file_name in file_list:
-                    if file_name.endswith('.db'):
-                        db_file = file_name
-                        break
-                
-                if not db_file:
-                    return False, "Zip dosyasında veritabanı bulunamadı"
-                
-                # Geçici klasöre çıkart
-                temp_dir = self.backup_dir / "temp_restore"
-                temp_dir.mkdir(exist_ok=True)
-                
-                try:
-                    # Veritabanını çıkart
-                    zipf.extract(db_file, temp_dir)
-                    extracted_db = temp_dir / db_file
-                    
-                    if verify_integrity:
-                        # Bütünlük kontrolü
-                        if not self._verify_database_integrity(extracted_db):
-                            return False, "Çıkarılan veritabanı bozuk"
-                    
-                    # Ana veritabanına kopyala
-                    shutil.copy2(extracted_db, self.db_path)
-                    
-                    return True, "Sıkıştırılmış yedekten geri yüklendi"
-                    
-                finally:
-                    # Geçici dosyaları temizle
-                    if temp_dir.exists():
-                        shutil.rmtree(temp_dir)
-                        
-        except Exception as e:
-            return False, f"Sıkıştırılmış geri yükleme hatası: {e}"
-    
-    def _verify_database_integrity(self, db_path: Path) -> bool:
-        """Veritabanı bütünlüğünü kontrol et"""
-        try:
-            conn = sqlite3.connect(str(db_path))
-            cursor = conn.cursor()
-            
-            # PRAGMA integrity_check
-            cursor.execute("PRAGMA integrity_check")
-            result = cursor.fetchone()
-            
-            conn.close()
-            
-            return result and result[0] == "ok"
-            
-        except Exception as e:
-            self.logger.error(f"Integrity check error: {e}")
-            return False
-    
-    def list_backups(self) -> List[Dict]:
-        """Mevcut yedekleri listele"""
-        try:
-            backups = []
-            
-            for backup_file in self.backup_dir.glob(f"*{self.BACKUP_EXTENSION}"):
-                backups.append(self._get_backup_info(backup_file))
-            
-            for backup_file in self.backup_dir.glob(f"*{self.COMPRESSED_EXTENSION}"):
-                backups.append(self._get_backup_info(backup_file))
-            
-            # Tarihe göre sırala (en yeni önce)
-            backups.sort(key=lambda x: x['created_at'], reverse=True)
-            
-            return backups
-            
-        except Exception as e:
-            self.logger.error(f"List backups error: {e}")
-            return []
-    
-    def _get_backup_info(self, backup_path: Path) -> Dict:
-        """Yedek dosyası bilgilerini al"""
-        try:
-            stat = backup_path.stat()
-            
-            info = {
-                "filename": backup_path.name,
-                "filepath": str(backup_path),
-                "size_bytes": stat.st_size,
-                "size_mb": round(stat.st_size / (1024 * 1024), 2),
-                "created_at": datetime.fromtimestamp(stat.st_ctime),
-                "modified_at": datetime.fromtimestamp(stat.st_mtime),
-                "type": "compressed" if backup_path.suffix == self.COMPRESSED_EXTENSION else "simple",
-                "hash": self._calculate_file_hash(backup_path)
-            }
-            
-            # Sıkıştırılmış dosyaysa metadata'yı oku
-            if backup_path.suffix == self.COMPRESSED_EXTENSION:
-                metadata = self._read_backup_metadata(backup_path)
-                if metadata:
-                    info["metadata"] = metadata
-            
-            return info
-            
-        except Exception as e:
-            self.logger.error(f"Get backup info error: {e}")
-            return {
-                "filename": backup_path.name,
-                "filepath": str(backup_path),
-                "error": str(e)
-            }
-    
-    def _read_backup_metadata(self, backup_path: Path) -> Optional[Dict]:
-        """Yedek metadata'sını oku"""
-        try:
-            with zipfile.ZipFile(backup_path, 'r') as zipf:
-                if "backup_metadata.json" in zipf.namelist():
-                    with zipf.open("backup_metadata.json") as f:
-                        return json.load(f)
-            return None
-            
-        except Exception as e:
-            self.logger.error(f"Read metadata error: {e}")
-            return None
-    
-    def _cleanup_old_backups(self):
-        """Eski yedekleri temizle"""
-        try:
-            backups = self.list_backups()
-            
-            if len(backups) > self.MAX_BACKUPS:
-                # En eski yedekleri sil
-                old_backups = backups[self.MAX_BACKUPS:]
-                
-                for backup in old_backups:
-                    try:
-                        backup_path = Path(backup['filepath'])
-                        if backup_path.exists():
-                            backup_path.unlink()
-                            self.logger.info(f"Old backup deleted: {backup_path}")
-                    except Exception as e:
-                        self.logger.error(f"Failed to delete old backup: {e}")
-                        
-        except Exception as e:
-            self.logger.error(f"Cleanup old backups error: {e}")
-    
-    def delete_backup(self, backup_path: str) -> Tuple[bool, str]:
-        """Yedek dosyasını sil"""
-        try:
-            backup_file = Path(backup_path)
-            
-            if not backup_file.exists():
-                return False, "Yedek dosyası bulunamadı"
-            
-            # Güvenlik kontrolü - sadece backup klasöründeki dosyalar
-            if not str(backup_file.resolve()).startswith(str(self.backup_dir.resolve())):
-                return False, "Güvenlik ihlali: Geçersiz dosya yolu"
-            
-            backup_file.unlink()
-            self.logger.info(f"Backup deleted: {backup_path}")
-            
-            return True, "Yedek dosyası silindi"
-            
-        except Exception as e:
-            error_msg = f"Yedek silme hatası: {e}"
-            self.logger.error(error_msg)
-            return False, error_msg
-    
-    def schedule_automatic_backup(self, interval_hours: int = 24) -> bool:
-        """Otomatik yedekleme zamanla (basit implementasyon)"""
-        try:
-            # Bu fonksiyon gelecekte cron job veya Windows Task Scheduler ile entegre edilebilir
-            # Şimdilik sadece log kaydı
-            self.logger.info(f"Automatic backup scheduled every {interval_hours} hours")
-            return True
-            
-        except Exception as e:
-            self.logger.error(f"Schedule backup error: {e}")
-            return False
-    
-    def get_backup_statistics(self) -> Dict:
-        """Yedekleme istatistikleri"""
-        try:
-            backups = self.list_backups()
-            
-            if not backups:
-                return {
-                    "total_backups": 0,
-                    "total_size_mb": 0,
-                    "oldest_backup": None,
-                    "newest_backup": None,
-                    "average_size_mb": 0
-                }
-            
-            total_size = sum(b.get('size_bytes', 0) for b in backups)
-            
-            stats = {
-                "total_backups": len(backups),
-                "total_size_mb": round(total_size / (1024 * 1024), 2),
-                "oldest_backup": backups[-1]['created_at'] if backups else None,
-                "newest_backup": backups[0]['created_at'] if backups else None,
-                "average_size_mb": round((total_size / len(backups)) / (1024 * 1024), 2),
-                "backup_types": {
-                    "compressed": len([b for b in backups if b.get('type') == 'compressed']),
-                    "simple": len([b for b in backups if b.get('type') == 'simple'])
-                }
-            }
-            
-            return stats
-            
-        except Exception as e:
-            self.logger.error(f"Get backup statistics error: {e}")
-            return {"error": str(e)}
-
-# Test fonksiyonu
-def test_backup_manager():
-    """Backup manager'ı test et"""
-    print("🧪 Backup Manager Test Başlıyor...")
-    
-    try:
-        # Test veritabanı oluştur
-        test_db = "test_backup.db"
-        
-        import sqlite3
-        conn = sqlite3.connect(test_db)
-        conn.execute("CREATE TABLE test (id INTEGER PRIMARY KEY, name TEXT)")
-        conn.execute("INSERT INTO test (name) VALUES ('Test Data')")
-        conn.commit()
-        conn.close()
-        
-        # Backup manager oluştur
-        backup_manager = BackupManager(test_db)
-        
-        # Yedek oluştur
-        success, result = backup_manager.create_backup(compressed=True)
-        print(f"Backup creation: {success} - {result}")
-        
-        # Yedekleri listele
-        backups = backup_manager.list_backups()
-        print(f"Total backups: {len(backups)}")
-        
-        # İstatistikler
-        stats = backup_manager.get_backup_statistics()
-        print(f"Backup statistics: {stats}")
-        
-        # Temizlik
-        if os.path.exists(test_db):
-            os.remove(test_db)
-        
-        print("✅ Backup Manager testi başarılı!")
-        
-    except Exception as e:
-        print(f"❌ Backup Manager testi başarısız: {e}")
-
-if __name__ == "__main__":
-    test_backup_manager()
     
     def start_scheduled_backup(self, backup_time: str = "23:00"):
         """Zamanlanmış yedeklemeyi başlat"""
@@ -713,6 +354,49 @@ if __name__ == "__main__":
             self.logger.error(f"Get backup status error: {e}")
             return {}
     
+    def list_backups(self) -> List[Dict]:
+        """Mevcut yedekleri listele"""
+        try:
+            backups = []
+            
+            # Yedek dosyalarını bul
+            for backup_file in self.backup_dir.glob("tezgah_takip_backup_*"):
+                if backup_file.is_file():
+                    backup_info = self._get_backup_info(backup_file)
+                    backups.append(backup_info)
+            
+            # Tarihe göre sırala (en yeni önce)
+            backups.sort(key=lambda x: x['date'], reverse=True)
+            
+            return backups
+            
+        except Exception as e:
+            self.logger.error(f"List backups error: {e}")
+            return []
+    
+    def _get_backup_info(self, backup_path: Path) -> Dict:
+        """Yedek dosyası bilgilerini al"""
+        try:
+            stat = backup_path.stat()
+            
+            return {
+                'name': backup_path.name,
+                'path': str(backup_path),
+                'size': stat.st_size,
+                'date': datetime.fromtimestamp(stat.st_mtime),
+                'type': 'compressed' if backup_path.suffix == '.zip' else 'simple'
+            }
+            
+        except Exception as e:
+            self.logger.error(f"Get backup info error: {e}")
+            return {
+                'name': backup_path.name,
+                'path': str(backup_path),
+                'size': 0,
+                'date': datetime.now(),
+                'type': 'unknown'
+            }
+    
     def _cleanup_old_backups(self):
         """Eski yedekleri temizle (sadece 7 tanesini tut)"""
         try:
@@ -773,28 +457,29 @@ if __name__ == "__main__":
             return False, error_msg
 
 # Test fonksiyonu
-def test_scheduled_backup():
-    """Zamanlanmış yedekleme sistemini test et"""
-    print("🧪 Zamanlanmış Yedekleme Test Başlıyor...")
+def test_advanced_backup():
+    """Gelişmiş yedekleme sistemini test et"""
+    print("🧪 Gelişmiş Yedekleme Test Başlıyor...")
     
     try:
         # Backup manager oluştur
-        backup_manager = BackupManager()
+        backup_manager = AdvancedBackupManager()
         
-        # Zamanlanmış yedeklemeyi başlat (test için 1 dakika sonra)
-        from datetime import datetime, timedelta
-        test_time = (datetime.now() + timedelta(minutes=1)).strftime("%H:%M")
+        # Manuel yedek test
+        print("📦 Manuel yedek oluşturuluyor...")
+        success, message = backup_manager.create_backup()
+        print(f"Manuel yedek: {success} - {message}")
         
-        success, message = backup_manager.start_scheduled_backup(test_time)
+        # Zamanlanmış yedeklemeyi başlat
+        print("⏰ Zamanlanmış yedekleme başlatılıyor...")
+        success, message = backup_manager.start_scheduled_backup("23:00")
         print(f"Zamanlanmış yedekleme: {success} - {message}")
         
         # Durum bilgilerini göster
+        print("📊 Yedekleme durumu:")
         status = backup_manager.get_backup_status()
-        print(f"Yedekleme durumu: {status}")
-        
-        # Manuel yedek test
-        success, message = backup_manager.create_backup()
-        print(f"Manuel yedek: {success} - {message}")
+        for key, value in status.items():
+            print(f"  {key}: {value}")
         
         print("✅ Test tamamlandı!")
         
@@ -802,4 +487,4 @@ def test_scheduled_backup():
         print(f"❌ Test hatası: {e}")
 
 if __name__ == "__main__":
-    test_scheduled_backup()
+    test_advanced_backup()

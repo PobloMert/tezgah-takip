@@ -152,7 +152,7 @@ class Bakim(Base):
     
     @validates('bakim_turu')
     def validate_bakim_turu(self, key, value):
-        valid_turler = ['Periyodik', 'Arızalı', 'Acil', 'Önleyici']
+        valid_turler = ['Periyodik', 'Arızalı', 'Acil', 'Önleyici', 'Pil Değişimi']
         if value and value not in valid_turler:
             raise ValueError(f"Bakım türü şunlardan biri olmalı: {', '.join(valid_turler)}")
         return value
@@ -230,7 +230,7 @@ class Pil(Base):
     
     @validates('durum')
     def validate_durum(self, key, value):
-        valid_durumlar = ['Aktif', 'Zayıf', 'Değiştirilmeli', 'Değiştirildi']
+        valid_durumlar = ['Aktif', 'Zayıf', 'Değiştirilmeli', 'Değiştirildi', 'Test Edildi', 'Yeni']
         if value and value not in valid_durumlar:
             raise ValueError(f"Durum şunlardan biri olmalı: {', '.join(valid_durumlar)}")
         return value

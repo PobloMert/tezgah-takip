@@ -444,7 +444,11 @@ class NotificationManager(QObject):
     def check_system_health(self):
         """Sistem sağlığını kontrol et"""
         try:
-            import psutil
+            try:
+                import psutil
+            except ImportError:
+                self.logger.warning("psutil not available, skipping system health check")
+                return
             
             # Memory usage
             memory = psutil.virtual_memory()

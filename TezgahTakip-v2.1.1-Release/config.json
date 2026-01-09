@@ -30,11 +30,9 @@
   "backup": {
     "auto_backup_enabled": true,
     "backup_interval_hours": 24,
-    "max_backups": 7,
+    "max_backups": 30,
     "compress_backups": true,
-    "include_logs": true,
-    "scheduled_enabled": true,
-    "backup_time": "23:00"
+    "include_logs": true
   },
   "security": {
     "api_key_file": "C:\\Users\\ahmet\\OneDrive\\Masaüstü\\dist\\api_key.enc",

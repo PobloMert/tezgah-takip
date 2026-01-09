@@ -1,0 +1,45 @@
+# TezgahTakip v2.1.1 - Release Notes
+
+## 🎉 Yeni Özellikler
+
+### ✅ Düzeltilen Hatalar
+- DateTime import hataları düzeltildi
+- Geçersiz karakter hataları giderildi
+- Database session yönetimi iyileştirildi
+- JSON import/export stabilize edildi
+
+### 🚀 Performans İyileştirmeleri
+- Uygulama başlatma hızı artırıldı
+- Bellek kullanımı optimize edildi
+- UI responsiveness iyileştirildi
+
+### 🔧 Teknik Güncellemeler
+- PyQt5 uyumluluğu artırıldı
+- SQLAlchemy 2.0 desteği
+- Modern Python 3.11+ uyumluluğu
+
+## 📋 Sistem Gereksinimleri
+- Windows 10/11 (64-bit)
+- En az 4 GB RAM
+- En az 500 MB boş disk alanı
+- .NET Framework 4.7.2 veya üzeri
+
+## 🚀 Kurulum
+1. KURULUM.bat dosyasını çalıştırın
+2. Kurulum talimatlarını takip edin
+3. Masaüstündeki kısayolu kullanın
+
+## 📁 Dosya Boyutu
+- Ana executable: ~110 MB
+- Toplam kurulum: ~120 MB
+
+## 🔗 Destek
+- GitHub: https://github.com/PobloMert/tezgah-takip
+- Versiyon: 2.1.1
+- Build Tarihi: 04.01.2026 21:53
+
+## 📝 Lisans
+MIT License - Açık kaynak yazılım
+
+---
+© 2024-2025 TezgahTakip - AI Güçlü Fabrika Bakım Yönetim Sistemi

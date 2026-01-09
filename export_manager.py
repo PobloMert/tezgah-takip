@@ -167,9 +167,17 @@ class ExportManager:
             filename = self._sanitize_filename(filename)
             filepath = os.path.join(self.output_dir, filename)
             
-            # Güvenlik kontrolü - dosya yolu
-            if not filepath.startswith(os.path.abspath(self.output_dir)):
-                raise ValueError("Güvenlik ihlali: Geçersiz dosya yolu")
+            # Güvenlik kontrolü - dosya yolu (Windows için düzeltildi)
+            abs_output_dir = os.path.abspath(self.output_dir)
+            abs_filepath = os.path.abspath(filepath)
+            
+            # Windows'ta büyük/küçük harf duyarsız karşılaştırma
+            if os.name == 'nt':  # Windows
+                if not abs_filepath.lower().startswith(abs_output_dir.lower()):
+                    raise ValueError("Güvenlik ihlali: Geçersiz dosya yolu")
+            else:
+                if not abs_filepath.startswith(abs_output_dir):
+                    raise ValueError("Güvenlik ihlali: Geçersiz dosya yolu")
             
             # Veri kontrolü
             if not data:
@@ -223,7 +231,7 @@ class ExportManager:
             raise Exception(f"Excel dışa aktarma hatası: {e}")
     
     def export_to_pdf(self, data_type: str, filters: Dict = None) -> str:
-        """Verileri PDF formatında dışa aktar"""
+        """Verileri PDF formatında dışa aktar - Türkçe karakter desteği ile"""
         if not PDF_AVAILABLE:
             raise ImportError("PDF desteği için gerekli paketler yüklü değil")
         
@@ -243,32 +251,88 @@ class ExportManager:
             filename = self._sanitize_filename(filename)
             filepath = os.path.join(self.output_dir, filename)
             
-            # Güvenlik kontrolü - dosya yolu
-            if not filepath.startswith(os.path.abspath(self.output_dir)):
-                raise ValueError("Güvenlik ihlali: Geçersiz dosya yolu")
+            # Güvenlik kontrolü - dosya yolu (Windows için düzeltildi)
+            abs_output_dir = os.path.abspath(self.output_dir)
+            abs_filepath = os.path.abspath(filepath)
+            
+            # Windows'ta büyük/küçük harf duyarsız karşılaştırma
+            if os.name == 'nt':  # Windows
+                if not abs_filepath.lower().startswith(abs_output_dir.lower()):
+                    raise ValueError("Güvenlik ihlali: Geçersiz dosya yolu")
+            else:
+                if not abs_filepath.startswith(abs_output_dir):
+                    raise ValueError("Güvenlik ihlali: Geçersiz dosya yolu")
+            
+            # Türkçe font desteği için font kayıt et
+            try:
+                # DejaVu Sans font'u kullan (Türkçe karakterleri destekler)
+                from reportlab.pdfbase import pdfmetrics
+                from reportlab.pdfbase.ttfonts import TTFont
+                
+                # Sistem fontlarını dene
+                font_paths = [
+                    "C:/Windows/Fonts/arial.ttf",  # Windows Arial
+                    "C:/Windows/Fonts/calibri.ttf",  # Windows Calibri
+                    "/System/Library/Fonts/Arial.ttf",  # macOS
+                    "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",  # Linux
+                ]
+                
+                font_registered = False
+                for font_path in font_paths:
+                    if os.path.exists(font_path):
+                        try:
+                            pdfmetrics.registerFont(TTFont('TurkishFont', font_path))
+                            font_registered = True
+                            break
+                        except:
+                            continue
+                
+                if not font_registered:
+                    # Fallback: Helvetica kullan (sınırlı Türkçe desteği)
+                    turkish_font = 'Helvetica'
+                else:
+                    turkish_font = 'TurkishFont'
+                    
+            except Exception as e:
+                self.logger.warning(f"Font registration failed: {e}")
+                turkish_font = 'Helvetica'
             
             # PDF dokümanı oluştur
             doc = SimpleDocTemplate(filepath, pagesize=A4)
             story = []
             
-            # Stil tanımları
+            # Türkçe destekli stil tanımları
             styles = getSampleStyleSheet()
             title_style = ParagraphStyle(
                 'CustomTitle',
                 parent=styles['Heading1'],
                 fontSize=18,
                 spaceAfter=30,
-                alignment=1  # Center
+                alignment=1,  # Center
+                fontName=turkish_font
+            )
+            
+            normal_style = ParagraphStyle(
+                'CustomNormal',
+                parent=styles['Normal'],
+                fontSize=10,
+                fontName=turkish_font
             )
             
             # Başlık
-            title_text = f"TezgahTakip - {data_type.title()} Raporu"
+            data_type_names = {
+                'tezgahlar': 'Tezgahlar',
+                'arizalar': 'Arızalar', 
+                'piller': 'Piller',
+                'ozet': 'Özet'
+            }
+            title_text = f"TezgahTakip - {data_type_names.get(data_type, data_type.title())} Raporu"
             story.append(Paragraph(title_text, title_style))
             story.append(Spacer(1, 12))
             
             # Rapor bilgileri
             info_text = f"Rapor Tarihi: {datetime.now().strftime('%d.%m.%Y %H:%M')}"
-            story.append(Paragraph(info_text, styles['Normal']))
+            story.append(Paragraph(info_text, normal_style))
             story.append(Spacer(1, 20))
             
             # Veri tipine göre içerik oluştur
@@ -294,30 +358,41 @@ class ExportManager:
                 self.logger.warning(f"PDF data size exceeds limit: {len(data)} > {self.MAX_RECORDS_LIMIT}")
                 data = data[:self.MAX_RECORDS_LIMIT]
             
-            # Tablo verilerini hazırla
+            # Tablo verilerini hazırla - Türkçe karakterleri koru
             table_data = [headers]
             for row in data:
                 # Güvenli veri çıkarma ve uzunluk sınırı
                 safe_row = []
                 for h in headers:
-                    value = str(row.get(h, ''))[:100]  # Maksimum 100 karakter
+                    value = str(row.get(h, ''))
+                    # Türkçe karakterleri koru, sadece uzunluğu sınırla
+                    if len(value) > 50:  # PDF için daha kısa sınır
+                        value = value[:47] + "..."
                     safe_row.append(value)
                 table_data.append(safe_row)
             
-            # Tablo oluştur
+            # Tablo oluştur - Türkçe font ile
             table = Table(table_data)
             table.setStyle(TableStyle([
                 ('BACKGROUND', (0, 0), (-1, 0), colors.green),
                 ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
                 ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
-                ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
-                ('FONTSIZE', (0, 0), (-1, 0), 12),
+                ('FONTNAME', (0, 0), (-1, 0), turkish_font),  # Türkçe font
+                ('FONTNAME', (0, 1), (-1, -1), turkish_font),  # Türkçe font
+                ('FONTSIZE', (0, 0), (-1, 0), 10),
+                ('FONTSIZE', (0, 1), (-1, -1), 8),
                 ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
                 ('BACKGROUND', (0, 1), (-1, -1), colors.beige),
-                ('GRID', (0, 0), (-1, -1), 1, colors.black)
+                ('GRID', (0, 0), (-1, -1), 1, colors.black),
+                ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
             ]))
             
             story.append(table)
+            
+            # Sayfa numarası ve toplam kayıt bilgisi
+            story.append(Spacer(1, 20))
+            footer_text = f"Toplam {len(data)} kayıt - TezgahTakip v2.1.1"
+            story.append(Paragraph(footer_text, normal_style))
             
             # PDF'i oluştur
             doc.build(story)
@@ -479,22 +554,55 @@ class ExportManager:
         return filepath
 
     def _create_summary_pdf(self, filters: Dict = None) -> str:
-        """Özet rapor PDF dosyası oluştur"""
+        """Özet rapor PDF dosyası oluştur - Türkçe karakter desteği ile"""
         filename = f"ozet_rapor_{datetime.now().strftime('%Y%m%d_%H%M%S')}.pdf"
         filepath = os.path.join(self.output_dir, filename)
+        
+        # Türkçe font desteği
+        try:
+            from reportlab.pdfbase import pdfmetrics
+            from reportlab.pdfbase.ttfonts import TTFont
+            
+            # Sistem fontlarını dene
+            font_paths = [
+                "C:/Windows/Fonts/arial.ttf",  # Windows Arial
+                "C:/Windows/Fonts/calibri.ttf",  # Windows Calibri
+                "/System/Library/Fonts/Arial.ttf",  # macOS
+                "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",  # Linux
+            ]
+            
+            font_registered = False
+            for font_path in font_paths:
+                if os.path.exists(font_path):
+                    try:
+                        pdfmetrics.registerFont(TTFont('TurkishFont', font_path))
+                        font_registered = True
+                        break
+                    except:
+                        continue
+            
+            if not font_registered:
+                turkish_font = 'Helvetica'
+            else:
+                turkish_font = 'TurkishFont'
+                
+        except Exception as e:
+            self.logger.warning(f"Font registration failed: {e}")
+            turkish_font = 'Helvetica'
         
         # PDF dokümanı oluştur
         doc = SimpleDocTemplate(filepath, pagesize=A4)
         story = []
         
-        # Stil tanımları
+        # Türkçe destekli stil tanımları
         styles = getSampleStyleSheet()
         title_style = ParagraphStyle(
             'CustomTitle',
             parent=styles['Heading1'],
             fontSize=20,
             spaceAfter=30,
-            alignment=1  # Center
+            alignment=1,  # Center
+            fontName=turkish_font
         )
         
         subtitle_style = ParagraphStyle(
@@ -502,7 +610,15 @@ class ExportManager:
             parent=styles['Heading2'],
             fontSize=14,
             spaceAfter=15,
-            alignment=0  # Left
+            alignment=0,  # Left
+            fontName=turkish_font
+        )
+        
+        normal_style = ParagraphStyle(
+            'CustomNormal',
+            parent=styles['Normal'],
+            fontSize=10,
+            fontName=turkish_font
         )
         
         # Ana başlık
@@ -511,7 +627,7 @@ class ExportManager:
         
         # Rapor bilgileri
         info_text = f"Rapor Tarihi: {datetime.now().strftime('%d.%m.%Y %H:%M')}"
-        story.append(Paragraph(info_text, styles['Normal']))
+        story.append(Paragraph(info_text, normal_style))
         story.append(Spacer(1, 20))
         
         # İstatistikler
@@ -533,11 +649,13 @@ class ExportManager:
             ('BACKGROUND', (0, 0), (-1, 0), colors.green),
             ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
             ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
-            ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+            ('FONTNAME', (0, 0), (-1, -1), turkish_font),  # Türkçe font
             ('FONTSIZE', (0, 0), (-1, 0), 12),
+            ('FONTSIZE', (0, 1), (-1, -1), 10),
             ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
             ('BACKGROUND', (0, 1), (-1, -1), colors.beige),
-            ('GRID', (0, 0), (-1, -1), 1, colors.black)
+            ('GRID', (0, 0), (-1, -1), 1, colors.black),
+            ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
         ]))
         
         story.append(stats_table)
@@ -551,11 +669,16 @@ class ExportManager:
             ariza_table_data = [ariza_headers]
             
             for i, row in enumerate(ariza_data[:10]):
+                # Türkçe karakterleri koru
+                aciklama = str(row.get('Açıklama', ''))
+                if len(aciklama) > 40:
+                    aciklama = aciklama[:37] + "..."
+                
                 ariza_table_data.append([
                     str(row.get('Tezgah', '')),
                     str(row.get('Tarih', '')),
                     str(row.get('Teknisyen', '')),
-                    str(row.get('Açıklama', ''))[:50] + '...' if len(str(row.get('Açıklama', ''))) > 50 else str(row.get('Açıklama', ''))
+                    aciklama
                 ])
             
             ariza_table = Table(ariza_table_data)
@@ -563,15 +686,60 @@ class ExportManager:
                 ('BACKGROUND', (0, 0), (-1, 0), colors.orange),
                 ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
                 ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
-                ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+                ('FONTNAME', (0, 0), (-1, -1), turkish_font),  # Türkçe font
                 ('FONTSIZE', (0, 0), (-1, 0), 10),
                 ('FONTSIZE', (0, 1), (-1, -1), 8),
                 ('BOTTOMPADDING', (0, 0), (-1, 0), 8),
                 ('BACKGROUND', (0, 1), (-1, -1), colors.lightgrey),
-                ('GRID', (0, 0), (-1, -1), 1, colors.black)
+                ('GRID', (0, 0), (-1, -1), 1, colors.black),
+                ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
             ]))
             
             story.append(ariza_table)
+            story.append(Spacer(1, 20))
+        
+        # Son pil değişimleri (ilk 10)
+        if pil_data:
+            story.append(Paragraph("🔋 Son Pil Değişimleri (İlk 10)", subtitle_style))
+            
+            pil_headers = ['Tezgah', 'Eksen', 'Model', 'Değişim Tarihi', 'Değiştiren']
+            pil_table_data = [pil_headers]
+            
+            for i, row in enumerate(pil_data[:10]):
+                pil_table_data.append([
+                    str(row.get('Tezgah', '')),
+                    str(row.get('Eksen', '')),
+                    str(row.get('Model', '')),
+                    str(row.get('Değişim Tarihi', '')),
+                    str(row.get('Değiştiren', ''))
+                ])
+            
+            pil_table = Table(pil_table_data)
+            pil_table.setStyle(TableStyle([
+                ('BACKGROUND', (0, 0), (-1, 0), colors.blue),
+                ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+                ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+                ('FONTNAME', (0, 0), (-1, -1), turkish_font),  # Türkçe font
+                ('FONTSIZE', (0, 0), (-1, 0), 10),
+                ('FONTSIZE', (0, 1), (-1, -1), 8),
+                ('BOTTOMPADDING', (0, 0), (-1, 0), 8),
+                ('BACKGROUND', (0, 1), (-1, -1), colors.lightblue),
+                ('GRID', (0, 0), (-1, -1), 1, colors.black),
+                ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+            ]))
+            
+            story.append(pil_table)
+        
+        # Footer
+        story.append(Spacer(1, 30))
+        footer_text = "TezgahTakip v2.1.1 - AI Güçlü Fabrika Bakım Yönetim Sistemi"
+        story.append(Paragraph(footer_text, normal_style))
+        
+        # PDF'i oluştur
+        doc.build(story)
+        
+        self.logger.info(f"Summary PDF export successful: {filepath}")
+        return filepath
         
         # PDF'i oluştur
         doc.build(story)
