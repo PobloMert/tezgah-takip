@@ -1,0 +1,27 @@
+{
+    "general": {
+        "start_tab": "dashboard",
+        "auto_save": true,
+        "theme": "dark"
+    },
+    "database": {
+        "path": "tezgah_takip.db"
+    },
+    "appearance": {
+        "font_family": "Segoe UI",
+        "font_size": 9
+    },
+    "backup": {
+        "auto_backup_enabled": true,
+        "backup_interval_days": 7
+    },
+    "update": {
+        "check_on_startup": false,
+        "auto_download": false
+    },
+    "ai": {
+        "gemini_api_key": "Z0FBQUFBQnBZVEFiYlNwdFEzVGN2QWFUaGVocTJoTTZfTWVnYzdxcW5RYUsxb1dNekVxaWZPOXdxMzMtMzZacTdMVHoxSkdQQjZLWFF5d0pBTDVMQ3FYbjZRVmVVaklyd3RoeXBBRkZDbXNKSi1pd2Q3bWQ2dzlBX1VLNHpmVlRzMFp2dWE2Wm5jcUg=",
+        "api_key_encrypted": true,
+        "last_updated": "2026-01-09T19:43:07.776058"
+    }
+}

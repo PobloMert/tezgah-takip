@@ -1,0 +1,27 @@
+{
+    "general": {
+        "start_tab": "dashboard",
+        "auto_save": true,
+        "theme": "dark"
+    },
+    "database": {
+        "path": "tezgah_takip.db"
+    },
+    "appearance": {
+        "font_family": "Segoe UI",
+        "font_size": 9
+    },
+    "backup": {
+        "auto_backup_enabled": true,
+        "backup_interval_days": 7
+    },
+    "update": {
+        "check_on_startup": false,
+        "auto_download": false
+    },
+    "ai": {
+        "gemini_api_key": "",
+        "api_key_encrypted": false,
+        "last_updated": ""
+    }
+}

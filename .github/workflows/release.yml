@@ -1,0 +1,116 @@
+name: Build and Release TezgahTakip
+
+on:
+  push:
+    tags:
+      - 'v*'  # v1.0.0, v2.1.0 gibi tag'lerde çalışır
+  workflow_dispatch:  # Manuel tetikleme
+    inputs:
+      version:
+        description: 'Version to build (e.g., v2.0.0)'
+        required: false
+        default: 'v2.0.0'
+
+jobs:
+  build-windows:
+    runs-on: windows-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.9'
+        
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install PyQt5>=5.15.0
+        pip install SQLAlchemy>=2.0.0
+        pip install requests>=2.25.0
+        pip install packaging>=21.0
+        pip install pyinstaller>=5.0.0
+        
+    - name: Build executable
+      run: |
+        python build_executable.py
+        
+    - name: Create release package
+      run: |
+        # ZIP dosyası oluştur
+        Compress-Archive -Path "dist/*" -DestinationPath "TezgahTakip-${{ github.ref_name }}-Windows.zip"
+        
+    - name: Upload artifacts
+      uses: actions/upload-artifact@v3
+      with:
+        name: TezgahTakip-Windows
+        path: |
+          TezgahTakip-${{ github.ref_name }}-Windows.zip
+          dist/
+          
+  create-release:
+    needs: build-windows
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Download artifacts
+      uses: actions/download-artifact@v3
+      with:
+        name: TezgahTakip-Windows
+        
+    - name: Create Release
+      id: create_release
+      uses: actions/create-release@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        tag_name: ${{ github.ref_name }}
+        release_name: TezgahTakip ${{ github.ref_name }}
+        body: |
+          ## 🎉 TezgahTakip ${{ github.ref_name }} Yayınlandı!
+          
+          ### 📥 İndirme Seçenekleri:
+          - **Otomatik Kurulum**: `installer.bat` dosyasını çalıştırın
+          - **Portable Versiyon**: ZIP'i açıp `TezgahTakip_Portable` klasörünü kullanın
+          - **Manuel Kurulum**: `TezgahTakip_Launcher.exe` dosyasını çalıştırın
+          
+          ### 🔄 Güncelleme:
+          - Mevcut kullanıcılar launcher üzerinden otomatik güncelleyebilir
+          - Yeni kurulum için installer'ı kullanın
+          
+          ### 🆕 Bu Versiyondaki Yenilikler:
+          - Otomatik güncelleme sistemi
+          - Gelişmiş tezgah işlemler menüsü
+          - Arıza kayıt sistemi
+          - Pil takip sistemi
+          - Modern dashboard tasarımı
+          
+          ### 💻 Sistem Gereksinimleri:
+          - Windows 10/11 (64-bit)
+          - 4 GB RAM (önerilen)
+          - 500 MB disk alanı
+          
+          ### 🐛 Bilinen Sorunlar:
+          - İlk çalıştırmada Windows Defender uyarısı çıkabilir (güvenli olarak işaretleyin)
+          
+          ### 📞 Destek:
+          - GitHub Issues üzerinden sorun bildirebilirsiniz
+          - Dokümantasyon için README.md dosyasını inceleyin
+          
+        draft: false
+        prerelease: false
+        
+    - name: Upload Release Asset
+      uses: actions/upload-release-asset@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        upload_url: ${{ steps.create_release.outputs.upload_url }}
+        asset_path: ./TezgahTakip-${{ github.ref_name }}-Windows.zip
+        asset_name: TezgahTakip-${{ github.ref_name }}-Windows.zip
+        asset_content_type: application/zip

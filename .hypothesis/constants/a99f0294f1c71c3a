@@ -1,0 +1,4 @@
+# file: C:\Users\inanmakina\Desktop\tezgah-takip-main\fallback_system.py
+# hypothesis_version: 6.150.0
+
+[493, '%Y%m%d_%H%M%S', '%Y-%m-%d %H:%M:%S', '.db', '.zip', '30', '7', ':memory:', 'Admin', 'Bakım', 'Bilinmiyor', 'Görünüm', 'Pil', 'SELECT 1', 'Sistem', 'Sistem Yöneticisi', 'Uygulama dili', 'Uygulama teması', 'admin', 'available_backups', 'backups', 'bakim_uyari_gun', 'check_same_thread', 'compressed', 'dark', 'date', 'dil', 'fallback_path', 'fallback_type', 'is_fallback_active', 'mtime', 'ok', 'otomatik_yedekleme', 'path', 'pil_uyari_gun', 'primary_db_path', 'r', 'simple', 'size', 'sqlite:///:memory:', 'tema', 'tezgah_takip_v2.db', 'timeout', 'tr', 'true', 'type', 'unknown', 'wb', 'yedekleme_periyodu']

@@ -1,0 +1,4 @@
+# file: C:\Users\inanmakina\Desktop\tezgah-takip-main\exception_handler.py
+# hypothesis_version: 6.150.0
+
+[100, 1024, 'AppData', 'Belirlenemeyen neden', 'Local', 'Temp', '\\((\\d+)\\)', 'access is denied', 'antivirus', 'available_disk_space', 'cleanup_suggestions', 'current_directory', 'database corruption', 'database is locked', 'disk I/O error', 'error_category', 'exception_message', 'exception_type', 'free_space_mb', 'invalid path', 'network path', 'path too long', 'permission denied', 'platform', 'required_mb', 'sqlite_version', 'sqlite_version_info', 'sufficient', 'system_info', 'temp_directory', 'unc path', 'virus', '~']

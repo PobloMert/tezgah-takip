@@ -1,0 +1,4 @@
+# file: C:\Users\inanmakina\Desktop\tezgah-takip-main\database_error_models.py
+# hypothesis_version: 6.150.0
+
+['Disk alanı açın', 'Disk alanı yetersiz', 'Geçersiz dosya yolu', 'alternative_path', 'antivirus_block', 'backup', 'clean', 'corruption', 'critical', 'disk_full', 'file_locked', 'file_not_found', 'full_access', 'high', 'invalid_path', 'low', 'medium', 'memory', 'network_path', 'no_access', 'path_not_exists', 'permission_denied', 'read_only', 'unknown']

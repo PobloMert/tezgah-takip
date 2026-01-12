@@ -1,0 +1,4 @@
+# file: C:\Users\inanmakina\Desktop\tezgah-takip-main\database_path_resolver.py
+# hypothesis_version: 6.150.0
+
+['.tezgahtakip', 'Documents', 'Kullanıcı ana dizini', 'LOCALAPPDATA', 'PROGRAMFILES', 'TezgahTakip', 'description', 'nt', 'path', 'tezgah_takip_v2.db']

@@ -1,0 +1,42 @@
+{
+  "database_path": "C:\\Users\\INANMA~1\\AppData\\Local\\Temp\\tmpsyv238ia\\test.db",
+  "report_generation_time": "2026-01-12T08:42:35.406341+00:00",
+  "check_timestamp": "2026-01-12T08:42:35.410090+00:00",
+  "overall_status": "HEALTHY",
+  "integrity_result": {
+    "is_valid": true,
+    "corruption_detected": false,
+    "error_count": 0,
+    "errors": [],
+    "repair_possible": false,
+    "backup_recommended": false
+  },
+  "statistics": {
+    "file_size_bytes": 49152,
+    "file_size_mb": 0.05,
+    "table_count": 8,
+    "index_count": 3,
+    "page_count": 12,
+    "page_size": 4096,
+    "table_record_counts": {
+      "kullanicilar": 1,
+      "tezgahlar": 1,
+      "piller": 1,
+      "bakimlar": 1,
+      "ayarlar": 1,
+      "loglar": 1,
+      "yedekler": 1,
+      "sqlite_stat1": 7
+    }
+  },
+  "recommendations": [
+    "✅ Veritabanı sağlıklı durumda",
+    "🔄 Düzenli yedekleme yapmaya devam edin",
+    "📊 Aylık bütünlük kontrolü yapın"
+  ],
+  "report_metadata": {
+    "generator": "TezgahTakip DatabaseIntegrityChecker",
+    "version": "1.0",
+    "generation_duration_seconds": 0.130345
+  }
+}

@@ -1,0 +1,51 @@
+{
+  "database_path": "C:\\Users\\INANMA~1\\AppData\\Local\\Temp\\tmpa7vgwkty\\test_enhanced.db",
+  "report_generation_time": "2026-01-12T08:53:03.349846+00:00",
+  "check_timestamp": "2026-01-12T08:53:03.351224+00:00",
+  "overall_status": "WARNING",
+  "integrity_result": {
+    "is_valid": false,
+    "corruption_detected": false,
+    "error_count": 7,
+    "errors": [
+      "Eksik tablo: kullanicilar",
+      "Eksik tablo: tezgahlar",
+      "Eksik tablo: piller",
+      "Eksik tablo: ayarlar",
+      "Eksik tablo: loglar",
+      "Eksik tablo: yedekler",
+      "Tablo bakimlar eksik sütun: bakim_tarihi"
+    ],
+    "repair_possible": false,
+    "backup_recommended": true
+  },
+  "statistics": {
+    "file_size_bytes": 139264,
+    "file_size_mb": 0.13,
+    "table_count": 8,
+    "index_count": 23,
+    "page_count": 34,
+    "page_size": 4096,
+    "table_record_counts": {
+      "test_table": 1,
+      "sqlite_stat1": 11,
+      "tezgah": 5,
+      "kullanici": 1,
+      "rapor": 0,
+      "ayar": 6,
+      "bakimlar": 0,
+      "pil_degisimler": 0
+    }
+  },
+  "recommendations": [
+    "⚠️ Veritabanında sorunlar tespit edildi",
+    "🔍 Detaylı inceleme yapın",
+    "📁 Mevcut durumun yedeğini alın",
+    "🛠️ Sistem yöneticisine başvurun"
+  ],
+  "report_metadata": {
+    "generator": "TezgahTakip DatabaseIntegrityChecker",
+    "version": "1.0",
+    "generation_duration_seconds": 0.352132
+  }
+}

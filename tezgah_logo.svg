@@ -1,0 +1,60 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="128" height="128" viewBox="0 0 128 128" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="bgGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#4CAF50;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#2E7D32;stop-opacity:1" />
+    </linearGradient>
+    <linearGradient id="machineGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#FFF;stop-opacity:0.9" />
+      <stop offset="100%" style="stop-color:#E0E0E0;stop-opacity:0.8" />
+    </linearGradient>
+  </defs>
+  
+  <!-- Arka plan daire -->
+  <circle cx="64" cy="64" r="60" fill="url(#bgGradient)" stroke="#1B5E20" stroke-width="2"/>
+  
+  <!-- Tezgah makinesi ana gövde -->
+  <rect x="25" y="45" width="78" height="45" rx="4" fill="url(#machineGradient)" stroke="#666" stroke-width="1"/>
+  
+  <!-- Makine kontrol paneli -->
+  <rect x="30" y="50" width="25" height="15" rx="2" fill="#333" stroke="#555" stroke-width="1"/>
+  
+  <!-- Kontrol butonları -->
+  <circle cx="35" cy="57" r="2" fill="#FF5722"/>
+  <circle cx="42" cy="57" r="2" fill="#4CAF50"/>
+  <circle cx="49" cy="57" r="2" fill="#2196F3"/>
+  
+  <!-- Makine çalışma alanı -->
+  <rect x="60" y="50" width="35" height="25" rx="2" fill="#E3F2FD" stroke="#1976D2" stroke-width="1"/>
+  
+  <!-- Çalışma parçası -->
+  <rect x="65" y="55" width="25" height="15" rx="1" fill="#FFC107" stroke="#F57F17" stroke-width="1"/>
+  
+  <!-- Makine ayakları -->
+  <rect x="30" y="85" width="8" height="12" fill="#666"/>
+  <rect x="90" y="85" width="8" height="12" fill="#666"/>
+  
+  <!-- AI sembolü (beyin ikonu) -->
+  <g transform="translate(75, 25)">
+    <circle cx="12" cy="12" r="10" fill="#FF9800" stroke="#E65100" stroke-width="1"/>
+    <path d="M 6 8 Q 12 4 18 8 Q 18 12 12 16 Q 6 12 6 8" fill="#FFF" opacity="0.8"/>
+    <circle cx="9" cy="9" r="1" fill="#E65100"/>
+    <circle cx="15" cy="9" r="1" fill="#E65100"/>
+  </g>
+  
+  <!-- Takip çizgileri (monitoring) -->
+  <g stroke="#4CAF50" stroke-width="2" fill="none" opacity="0.7">
+    <path d="M 15 25 Q 25 20 35 25"/>
+    <path d="M 15 30 Q 25 25 35 30"/>
+    <path d="M 15 35 Q 25 30 35 35"/>
+  </g>
+  
+  <!-- Veri akışı noktaları -->
+  <circle cx="15" cy="25" r="1.5" fill="#4CAF50"/>
+  <circle cx="25" cy="22" r="1" fill="#4CAF50"/>
+  <circle cx="35" cy="25" r="1.5" fill="#4CAF50"/>
+  
+  <!-- Başlık metni -->
+  <text x="64" y="115" text-anchor="middle" font-family="Arial, sans-serif" font-size="12" font-weight="bold" fill="#1B5E20">TezgahTakip</text>
+</svg>

@@ -1,0 +1,36 @@
+{
+  "database_path": "C:\\Users\\INANMA~1\\AppData\\Local\\Temp\\tmpzwoi541a\\corrupted.db",
+  "report_generation_time": "2026-01-12T09:51:30.490932+00:00",
+  "check_timestamp": "2026-01-12T09:51:30.492766+00:00",
+  "overall_status": "CORRUPTED",
+  "integrity_result": {
+    "is_valid": false,
+    "corruption_detected": true,
+    "error_count": 6,
+    "errors": [
+      "PRAGMA integrity_check hatası: file is not a database",
+      "Şema kontrolü hatası: file is not a database",
+      "Veri tutarlılığı kontrolü hatası: file is not a database",
+      "İndeks kontrolü hatası: file is not a database",
+      "Veritabanı dosyası çok küçük (muhtemelen bozuk)",
+      "Geçersiz SQLite dosya başlığı"
+    ],
+    "repair_possible": false,
+    "backup_recommended": true
+  },
+  "statistics": {
+    "error": "file is not a database"
+  },
+  "recommendations": [
+    "🚨 KRİTİK: Veritabanı bozulması tespit edildi",
+    "💾 Yedekten geri yükleme gerekli",
+    "⚠️ Veri kaybı riski var",
+    "📁 Mevcut durumun yedeğini alın",
+    "🛠️ Sistem yöneticisine başvurun"
+  ],
+  "report_metadata": {
+    "generator": "TezgahTakip DatabaseIntegrityChecker",
+    "version": "1.0",
+    "generation_duration_seconds": 0.027279
+  }
+}

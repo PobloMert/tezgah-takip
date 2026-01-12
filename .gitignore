@@ -1,0 +1,75 @@
+# Python 
+__pycache__/ 
+*.py[cod] 
+*$py.class 
+*.so 
+.Python 
+build/ 
+develop-eggs/ 
+dist/ 
+downloads/ 
+eggs/ 
+.eggs/ 
+lib/ 
+lib64/ 
+parts/ 
+sdist/ 
+var/ 
+wheels/ 
+*.egg-info/ 
+.installed.cfg 
+*.egg 
+MANIFEST 
+ 
+# PyInstaller 
+*.manifest 
+*.spec 
+*.exe
+
+# Large distribution files (GitHub 100MB limit)
+*.zip
+TezgahTakip-*.zip
+TezgahTakip-v*.zip
+
+# Build directories and large files
+build/
+dist/
+*.pkg
+*.pyz
+
+# Old MTB logo files (deprecated)
+mtb_logo.png
+mtb_logo.svg
+mtb_logo.py
+
+# Source code backup (local only)
+source_code/ 
+ 
+# Logs 
+logs/ 
+*.log 
+ 
+# Database 
+*.db 
+*.sqlite 
+*.sqlite3 
+ 
+# Backups 
+backups/ 
+backup_before_update/ 
+temp_update/ 
+ 
+# Config files with sensitive data 
+.secrets.json 
+.encryption_key 
+ 
+# IDE 
+.vscode/ 
+.idea/ 
+*.swp 
+*.swo 
+ 
+# OS 
+.DS_Store 
+Thumbs.db 
+desktop.ini 

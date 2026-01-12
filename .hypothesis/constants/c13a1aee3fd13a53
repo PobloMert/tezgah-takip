@@ -1,0 +1,4 @@
+# file: C:\Users\inanmakina\Desktop\tezgah-takip-main\exception_handler.py
+# hypothesis_version: 6.150.0
+
+[100, 1024, '.', '10-30 dakika', '15-60 dakika', '2-5 dakika', '5-10 dakika', '5-15 dakika', '5-20 dakika', 'AppData', 'Belirlenemeyen neden', 'Local', 'Temp', '\\((\\d+)\\)', 'access is denied', 'antivirus', 'app_path', 'available_disk_space', 'cleanup_suggestions', 'current_directory', 'database corruption', 'database is locked', 'database_path', 'disk I/O error', 'disk_space_info', 'emergency_solutions', 'error_analysis', 'error_category', 'estimated_fix_time', 'exception_message', 'exception_type', 'free_space_mb', 'immediate_solutions', 'invalid path', 'network path', 'path too long', 'permission denied', 'platform', 'preventive_measures', 'priority_order', 'required_mb', 'requires_admin', 'sqlite_version', 'sqlite_version_info', 'sufficient', 'system_info', 'temp_directory', 'unc path', 'virus', '~']

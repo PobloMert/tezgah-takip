@@ -1,0 +1,4 @@
+# file: C:\Users\inanmakina\Desktop\tezgah-takip-main\database_integrity_checker.py
+# hypothesis_version: 6.150.0
+
+[b'SQLite format 3\x00', 365, 493, 1024, '%Y%m%d_%H%M%S', 'ANALYZE', 'CORRUPTED', 'Dosya okuma izni yok', 'Dosya yazma izni yok', 'ERROR', 'HEALTHY', 'PRAGMA page_count', 'PRAGMA page_size', 'WARNING', 'aciklama', 'ad_soyad', 'anahtar', 'ayarlar', 'backup_recommended', 'backups', 'bakim_tarihi', 'bakimlar', 'boyut', 'check_timestamp', 'corruption_detected', 'database_path', 'deger', 'degisim_tarihi', 'dosya_adi', 'durum', 'eksen', 'email', 'error', 'error_count', 'errors', 'file_size_bytes', 'file_size_mb', 'id', 'index_count', 'integrity_result', 'is_ok', 'is_valid', 'kullanici_adi', 'kullanicilar', 'loglar', 'mesaj', 'numarasi', 'ok', 'overall_status', 'page_count', 'page_size', 'piller', 'rb', 'recommendations', 'repair_possible', 'seviye', 'statistics', 'table_count', 'table_record_counts', 'tarih', 'tezgah_id', 'tezgahlar', 'yedekler']

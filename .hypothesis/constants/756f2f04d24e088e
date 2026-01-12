@@ -1,0 +1,4 @@
+# file: C:\Users\inanmakina\Desktop\tezgah-takip-main\file_access_validator.py
+# hypothesis_version: 6.150.0
+
+[260, '.tezgahtakip', '<>:"|?*', 'Documents', 'Erişim izni yok', 'LOCALAPPDATA', 'Okuma izni yok', 'TezgahTakip', 'Yazma izni yok', 'a', 'nt', 'test', 'w']
