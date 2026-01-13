@@ -30,6 +30,21 @@ if sys.platform == "win32":
         except:
             pass
 
+# Enhanced Update System'i güvenli şekilde import et
+try:
+    from enhanced_update_manager import EnhancedUpdateManager, UpdateStatus
+    from path_resolver import PathResolver
+    from file_validator import FileValidator
+    from backup_manager import BackupManager
+    from error_handler import ErrorHandler
+    from fallback_system import FallbackSystem
+    from data_preservation_manager import DataPreservationManager
+    from manual_update_manager import ManualUpdateManager
+    ENHANCED_UPDATE_AVAILABLE = True
+except ImportError as e:
+    print(f"Enhanced Update System import hatası: {e}")
+    ENHANCED_UPDATE_AVAILABLE = False
+
 # AutoUpdater'ı güvenli şekilde import et
 try:
     from auto_updater import AutoUpdater
@@ -78,8 +93,40 @@ class TezgahTakipLauncher:
             pass
         
         self.updater = AutoUpdater()
+        
+        # Enhanced Update System'i başlat
+        if ENHANCED_UPDATE_AVAILABLE:
+            self.setup_enhanced_update_system()
+        
         self.setup_ui()
         
+    def setup_enhanced_update_system(self):
+        """Enhanced Update System'i kurulum"""
+        try:
+            self.path_resolver = PathResolver()
+            self.file_validator = FileValidator(self.path_resolver)
+            self.backup_manager = BackupManager(path_resolver=self.path_resolver)
+            self.error_handler = ErrorHandler()
+            self.fallback_system = FallbackSystem(self.path_resolver)
+            self.data_preservation_manager = DataPreservationManager(self.path_resolver)
+            self.manual_update_manager = ManualUpdateManager(self.path_resolver, self.file_validator)
+            
+            # Enhanced Update Manager'ı oluştur ve bileşenleri ayarla
+            self.enhanced_updater = EnhancedUpdateManager()
+            self.enhanced_updater.set_components(
+                self.path_resolver,
+                self.file_validator,
+                self.backup_manager,
+                self.error_handler,
+                self.data_preservation_manager
+            )
+            
+            self.log("✅ Enhanced Update System başlatıldı")
+            
+        except Exception as e:
+            self.log(f"⚠️ Enhanced Update System başlatılamadı: {e}")
+            self.enhanced_updater = None
+    
     def setup_ui(self):
         """Arayüzü oluştur"""
         # Ana frame
@@ -202,7 +249,81 @@ class TezgahTakipLauncher:
         self.check_updates_silent()
     
     def perform_update(self, update_info):
-        """Güncellemeyi gerçekleştir"""
+        """Güncellemeyi gerçekleştir - Enhanced Update System ile"""
+        def update_thread():
+            try:
+                self.update_button.config(state='disabled')
+                self.launch_button.config(state='disabled')
+                
+                # Enhanced Update System varsa onu kullan
+                if ENHANCED_UPDATE_AVAILABLE and hasattr(self, 'enhanced_updater') and self.enhanced_updater:
+                    self.perform_enhanced_update(update_info)
+                else:
+                    self.perform_legacy_update(update_info)
+                    
+            except Exception as e:
+                self.log(f"❌ Güncelleme hatası: {e}")
+                self.update_status("Güncelleme başarısız")
+                
+                # Enhanced error handling varsa kullan
+                if ENHANCED_UPDATE_AVAILABLE and hasattr(self, 'error_handler'):
+                    error_result = self.error_handler.handle_update_error(e, {
+                        'update_version': update_info.get('version', 'unknown'),
+                        'update_in_progress': True
+                    })
+                    
+                    # Manuel güncelleme seçeneği sun
+                    if hasattr(self, 'manual_update_manager'):
+                        self.offer_manual_update(update_info, error_result)
+                else:
+                    messagebox.showerror("Güncelleme Hatası", f"Güncelleme başarısız:\n{e}")
+            
+            finally:
+                self.update_button.config(state='normal')
+                self.launch_button.config(state='normal')
+                self.update_progress(0)
+        
+        threading.Thread(target=update_thread, daemon=True).start()
+    
+    def perform_enhanced_update(self, update_info):
+        """Enhanced Update System ile güncelleme"""
+        try:
+            self.log("🔧 Enhanced Update System ile güncelleme başlatılıyor...")
+            self.update_status("Gelişmiş güncelleme sistemi ile güncelleniyor...")
+            self.update_progress(10)
+            
+            # Enhanced update manager ile güncelleme yap
+            target_version = update_info.get('version', '2.1.3')
+            
+            self.log(f"📋 Hedef versiyon: {target_version}")
+            self.update_progress(20)
+            
+            # Güncellemeyi gerçekleştir
+            update_result = self.enhanced_updater.perform_update(target_version)
+            
+            if update_result.success:
+                self.log("✅ Enhanced güncelleme başarıyla tamamlandı!")
+                self.update_status("Güncelleme tamamlandı")
+                self.update_progress(100)
+                
+                # Versiyon bilgisini güncelle
+                self.updater.current_version = target_version
+                self.version_label.config(text=f"Versiyon: {target_version}")
+                
+                messagebox.showinfo("Güncelleme Tamamlandı", 
+                                  "Güncelleme başarıyla tamamlandı!\n\n"
+                                  "Uygulama yeniden başlatılacak.")
+                
+                self.restart_app()
+            else:
+                raise Exception(f"Enhanced güncelleme başarısız: {update_result.error_message}")
+                
+        except Exception as e:
+            self.log(f"❌ Enhanced güncelleme hatası: {e}")
+            raise e
+    
+    def perform_legacy_update(self, update_info):
+        """Eski güncelleme sistemi ile güncelleme"""
         def update_thread():
             try:
                 self.update_button.config(state='disabled')
@@ -370,3 +491,104 @@ class TezgahTakipLauncher:
 if __name__ == "__main__":
     launcher = TezgahTakipLauncher()
     launcher.run()
+    
+    def offer_manual_update(self, update_info, error_result):
+        """Manuel güncelleme seçeneği sun"""
+        try:
+            self.log("🔧 Manuel güncelleme seçenekleri hazırlanıyor...")
+            
+            # Manuel güncelleme planı oluştur
+            target_version = update_info.get('version', '2.1.3')
+            error_context = {
+                'error_type': 'update_failure',
+                'error_message': error_result.get('error_message', 'Unknown error'),
+                'update_version': target_version
+            }
+            
+            manual_plan = self.manual_update_manager.create_manual_update_plan(target_version, error_context)
+            
+            # Kullanıcıya manuel güncelleme seçeneği sun
+            result = messagebox.askyesno(
+                "Manuel Güncelleme",
+                f"Otomatik güncelleme başarısız oldu.\n\n"
+                f"Manuel güncelleme talimatlarını görmek istiyor musunuz?\n\n"
+                f"Tahmini süre: {manual_plan.estimated_time_minutes} dakika\n"
+                f"Zorluk seviyesi: {manual_plan.difficulty_level.title()}"
+            )
+            
+            if result:
+                self.show_manual_instructions(manual_plan)
+            
+        except Exception as e:
+            self.log(f"❌ Manuel güncelleme seçeneği hazırlanamadı: {e}")
+    
+    def show_manual_instructions(self, manual_plan):
+        """Manuel güncelleme talimatlarını göster"""
+        try:
+            # Yeni pencere oluştur
+            instructions_window = tk.Toplevel(self.root)
+            instructions_window.title("Manuel Güncelleme Talimatları")
+            instructions_window.geometry("800x600")
+            instructions_window.resizable(True, True)
+            
+            # Ana frame
+            main_frame = ttk.Frame(instructions_window, padding="10")
+            main_frame.grid(row=0, column=0, sticky=(tk.W, tk.E, tk.N, tk.S))
+            
+            # Başlık
+            title_label = ttk.Label(main_frame, text=f"Manuel Güncelleme Talimatları - v{manual_plan.target_version}", 
+                                  font=("Arial", 14, "bold"))
+            title_label.grid(row=0, column=0, columnspan=2, pady=(0, 10))
+            
+            # Talimatlar metni
+            instructions_text = tk.Text(main_frame, wrap=tk.WORD, font=("Consolas", 10))
+            scrollbar_inst = ttk.Scrollbar(main_frame, orient="vertical", command=instructions_text.yview)
+            instructions_text.configure(yscrollcommand=scrollbar_inst.set)
+            
+            # Talimatları yaz
+            user_instructions = self.manual_update_manager.get_user_friendly_instructions(manual_plan)
+            instructions_text.insert(tk.END, "\n".join(user_instructions))
+            instructions_text.config(state=tk.DISABLED)
+            
+            instructions_text.grid(row=1, column=0, sticky=(tk.W, tk.E, tk.N, tk.S))
+            scrollbar_inst.grid(row=1, column=1, sticky=(tk.N, tk.S))
+            
+            # Butonlar
+            button_frame = ttk.Frame(main_frame)
+            button_frame.grid(row=2, column=0, columnspan=2, pady=(10, 0))
+            
+            ttk.Button(button_frame, text="Kapat", command=instructions_window.destroy).grid(row=0, column=0, padx=(0, 10))
+            ttk.Button(button_frame, text="Talimatları Kaydet", 
+                      command=lambda: self.save_instructions(user_instructions)).grid(row=0, column=1)
+            
+            # Grid weights
+            instructions_window.columnconfigure(0, weight=1)
+            instructions_window.rowconfigure(0, weight=1)
+            main_frame.columnconfigure(0, weight=1)
+            main_frame.rowconfigure(1, weight=1)
+            
+        except Exception as e:
+            self.log(f"❌ Manuel talimatlar gösterilemedi: {e}")
+            messagebox.showerror("Hata", f"Manuel talimatlar gösterilemedi: {e}")
+    
+    def save_instructions(self, instructions):
+        """Talimatları dosyaya kaydet"""
+        try:
+            from tkinter import filedialog
+            
+            filename = filedialog.asksaveasfilename(
+                defaultextension=".txt",
+                filetypes=[("Text files", "*.txt"), ("All files", "*.*")],
+                title="Talimatları Kaydet"
+            )
+            
+            if filename:
+                with open(filename, 'w', encoding='utf-8') as f:
+                    f.write("\n".join(instructions))
+                
+                self.log(f"✅ Talimatlar kaydedildi: {filename}")
+                messagebox.showinfo("Kaydedildi", f"Talimatlar başarıyla kaydedildi:\n{filename}")
+                
+        except Exception as e:
+            self.log(f"❌ Talimatlar kaydedilemedi: {e}")
+            messagebox.showerror("Hata", f"Talimatlar kaydedilemedi: {e}")

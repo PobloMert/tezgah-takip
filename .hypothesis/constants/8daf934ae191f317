@@ -1,0 +1,4 @@
+# file: C:\Users\inanmakina\Desktop\tezgah-takip-main\file_validator.py
+# hypothesis_version: 6.150.0
+
+[100, 1024, 8192, '-', '.json', '.py', '.pyc', '.zip', 'Application launcher', 'Configuration file', 'File is empty', 'File is not readable', 'FileValidator', 'Frozen Executable', 'Main window module', 'Python', 'ZIP file is empty', '__version__', 'base_library.zip', 'config.json', 'critical_issues', 'datetime', 'description', 'exec', 'extensions', 'found_dependencies', 'frozen', 'if __name__', 'issues_found', 'json', 'launcher.py', 'logging', 'main', 'main_window.py', 'min_size', 'missing_optional', 'missing_required', 'os', 'pathlib', 'r', 'rb', 'required', 'sha256', 'sqlite3', 'sys', 'tezgah_takip_app.py', 'tkinter', 'total_dependencies', 'utf-8', 'w', 'warnings', 'x']

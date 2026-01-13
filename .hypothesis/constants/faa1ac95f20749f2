@@ -1,0 +1,4 @@
+# file: C:\Users\inanmakina\Desktop\tezgah-takip-main\path_resolver.py
+# hypothesis_version: 6.150.0
+
+['/tmp', '/var/tmp', 'AppData', 'C:\\Program Files', 'Desktop', 'Documents', 'Downloads', 'InstallPath', 'Local', 'PATH', 'PROGRAMFILES', 'PROGRAMFILES(X86)', 'PYTHONPATH', 'PathResolver', 'SOFTWARE\\TezgahTakip', 'TEMP', 'TEZGAH_HOME', 'TMP', 'TezgahTakip', 'Windows', '_MEIPASS', 'architecture', 'base.zip', 'base_library.zip', 'config.json', 'executable', 'frozen', 'launcher.py', 'lib', 'library.zip', 'libs', 'main_window.py', 'platform', 'python_library.zip', 'python_version', 'resources', 'tezgah_takip_app.py', '~']

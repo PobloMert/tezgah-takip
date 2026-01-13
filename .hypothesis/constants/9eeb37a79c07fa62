@@ -1,0 +1,4 @@
+# file: C:\Users\inanmakina\Desktop\tezgah-takip-main\backup_manager.py
+# hypothesis_version: 6.150.0
+
+[100, 8192, '.', '.bak', '.log', '.tmp', 'Backup is empty', 'BackupManager', '__pycache__', 'average_size_bytes', 'backup_metadata.json', 'backups', 'compression_ratio', 'newest_backup', 'oldest_backup', 'original_size_bytes', 'platform', 'python_version', 'r', 'rb', 'temp', 'tmp', 'total_backups', 'total_size_bytes', 'unknown', 'utf-8', 'versions', 'w']

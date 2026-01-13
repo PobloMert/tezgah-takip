@@ -1,0 +1,151 @@
+# TezgahTakip - AI Güçlü Fabrika Bakım Yönetim Sistemi
+# Gerekli Python paketleri
+
+# GUI Framework
+PyQt5>=5.15.0
+
+# Veritabanı
+SQLAlchemy>=1.4.0
+
+# HTTP İstekleri (Gemini AI için)
+requests>=2.25.0
+
+# Versiyon yönetimi ve güncelleme sistemi
+packaging>=21.0
+
+# Güvenlik ve Şifreleme
+cryptography>=41.0.0
+
+# Veri Analizi ve Export
+pandas>=2.0.0          # Veri analizi ve Excel export için
+openpyxl>=3.1.0        # Excel dosya desteği için
+xlsxwriter>=3.0.0      # Excel yazma desteği için
+
+# PDF ve Raporlama
+reportlab>=4.0.0       # PDF rapor oluşturma için
+
+# Grafik ve Görselleştirme
+matplotlib>=3.7.0      # Grafik çizimi için
+seaborn>=0.12.0        # İstatistiksel grafikler için
+
+# Tarih ve Zaman İşlemleri
+python-dateutil>=2.8.0
+
+# Dosya İşlemleri ve Arşivleme
+zipfile36>=0.1.3       # Python 3.6+ için zipfile desteği (built-in'e ek)
+
+# Sistem ve Platform
+psutil>=5.9.0          # Sistem bilgileri ve performans monitoring için
+pathlib2>=2.3.0        # Python 3.4+ için pathlib desteği
+
+# Logging ve Monitoring
+colorlog>=6.7.0        # Renkli log çıktıları için
+
+# Windows Specific (Accessibility için)
+pywin32>=306; sys_platform == "win32"  # Windows API erişimi için
+
+# Development ve Testing (Opsiyonel)
+pytest>=7.0.0          # Unit testing için
+pytest-qt>=4.2.0       # PyQt testing için
+pytest-cov>=4.0.0      # Test coverage için
+black>=23.0.0          # Code formatting için
+flake8>=6.0.0          # Code linting için
+mypy>=1.0.0            # Type checking için
+
+# Performance ve Monitoring
+memory-profiler>=0.60.0  # Memory profiling için
+line-profiler>=4.0.0     # Line-by-line profiling için
+
+# Security
+bandit>=1.7.0          # Security linting için
+safety>=2.3.0          # Dependency vulnerability checking için
+
+# Documentation
+sphinx>=5.0.0          # Documentation generation için
+sphinx-rtd-theme>=1.2.0  # ReadTheDocs theme için
+
+# Backup ve Compression
+# (Built-in zipfile ve shutil kullanılıyor)
+
+# Yeni Eklenen Modüller İçin
+# - security_manager.py
+# - exception_handler.py  
+# - performance_monitor.py
+# - advanced_logger.py
+# - notification_manager.py
+py7zr>=0.20.0          # 7zip arşiv desteği için
+
+# JSON ve Configuration
+jsonschema>=4.17.0     # JSON validation için
+
+# Memory Management
+memory-profiler>=0.61.0  # Memory profiling için
+
+# Performance
+cachetools>=5.3.0      # Caching için
+lru-dict>=1.2.0        # LRU cache implementasyonu için
+
+# Accessibility
+pyttsx3>=2.90          # Text-to-speech için (screen reader desteği)
+speech-recognition>=3.10.0  # Ses tanıma için (gelecek özellikler)
+
+# Network ve API
+urllib3>=2.0.0         # HTTP client için
+certifi>=2023.0.0      # SSL sertifikaları için
+
+# Data Validation
+validators>=0.22.0     # Veri validasyonu için
+email-validator>=2.1.0  # Email validasyonu için
+
+# Async Support (Gelecek özellikler için)
+asyncio>=3.4.3         # Async operations için
+aiofiles>=23.0.0       # Async file operations için
+
+# Internationalization (i18n)
+babel>=2.12.0          # Çoklu dil desteği için
+
+# Configuration Management
+pyyaml>=6.0.0          # YAML config desteği için
+toml>=0.10.0           # TOML config desteği için
+
+# Error Tracking ve Monitoring
+sentry-sdk>=1.32.0     # Error tracking için (opsiyonel)
+
+# Built-in Modules (Referans için - yükleme gerektirmez)
+# datetime - built-in
+# json - built-in
+# os - built-in
+# sys - built-in
+# logging - built-in
+# base64 - built-in
+# hashlib - built-in
+# platform - built-in
+# uuid - built-in
+# sqlite3 - built-in
+# threading - built-in
+# multiprocessing - built-in
+# re - built-in
+# time - built-in
+# collections - built-in
+# itertools - built-in
+# functools - built-in
+# contextlib - built-in
+# pathlib - built-in (Python 3.4+)
+# typing - built-in (Python 3.5+)
+# dataclasses - built-in (Python 3.7+)
+
+# Minimum Python Version: 3.7+
+# Recommended Python Version: 3.9+
+
+# Installation Instructions:
+# pip install -r requirements.txt
+#
+# For development:
+# pip install -r requirements.txt
+# pip install pytest pytest-qt black flake8
+#
+# For minimal installation (core features only):
+# pip install PyQt5 SQLAlchemy requests cryptography
+#
+# For full features:
+# pip install -r requirements.txt

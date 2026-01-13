@@ -1,16 +1,4 @@
 # 🏭 TezgahTakip - AI Güçlü Fabrika Bakım Yönetim Sistemi 
-
-## 🚨 Latest Release: v2.1.4 - Critical Hotfix
-
-**Important Update Available!** This release fixes critical compatibility issues.
-
-- 🔧 Resolves v2.0.0 to v2.1.3 update problems
-- ✅ Enhanced update system with 88.9% success rate  
-- 🛡️ Automatic backup and recovery
-- 📥 [Download v2.1.4](https://github.com/PobloMert/tezgah-takip/releases/tag/v2.1.4)
-
----
-
  
 ## 🎯 Proje Hakkında 
  
